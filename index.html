@@ -453,6 +453,135 @@
       text-decoration: underline;
     }
 
+    .announcement-open,
+    .discussion-open {
+      border: 0;
+      background: transparent;
+      box-shadow: none;
+      padding: 0;
+      min-height: auto;
+      color: #101828;
+      font-weight: 800;
+      text-align: left;
+      line-height: 1.35;
+    }
+
+    .announcement-open:hover,
+    .discussion-open:hover {
+      color: var(--blue);
+      text-decoration: underline;
+    }
+
+    .discussion-card {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 12px;
+      background: #fbfdff;
+      display: grid;
+      gap: 8px;
+    }
+
+    .discussion-meta {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .discussion-summary {
+      margin: 0;
+      color: #475467;
+      font-size: 13px;
+      line-height: 1.5;
+    }
+
+    .reader-modal {
+      position: fixed;
+      inset: 0;
+      z-index: 50;
+      display: none;
+      background: rgba(15, 23, 42, .58);
+      padding: 18px;
+    }
+
+    .reader-modal.open {
+      display: grid;
+      place-items: center;
+    }
+
+    .reader-shell {
+      width: min(980px, 100%);
+      height: min(86vh, 840px);
+      background: #ffffff;
+      border-radius: 8px;
+      overflow: hidden;
+      display: grid;
+      grid-template-rows: auto 1fr;
+      box-shadow: 0 24px 72px rgba(15, 23, 42, .28);
+    }
+
+    .reader-head {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 12px;
+      align-items: start;
+      padding: 12px 14px;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .reader-title {
+      display: grid;
+      gap: 4px;
+      min-width: 0;
+    }
+
+    .reader-title strong {
+      line-height: 1.35;
+      overflow-wrap: anywhere;
+    }
+
+    .reader-title span {
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .reader-actions {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+    }
+
+    .reader-link,
+    .reader-close {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      border: 1px solid var(--line);
+      background: #ffffff;
+      color: var(--ink);
+      border-radius: 8px;
+      min-height: 36px;
+      padding: 0 10px;
+      font-weight: 800;
+      text-decoration: none;
+      box-shadow: 0 6px 16px rgba(28, 39, 58, .06);
+    }
+
+    .reader-close {
+      cursor: pointer;
+    }
+
+    .reader-frame {
+      width: 100%;
+      height: 100%;
+      border: 0;
+      background: #ffffff;
+    }
+
     .notice {
       margin-top: 16px;
       color: #475467;
@@ -620,9 +749,34 @@
         </div>
       </div>
 
+      <div class="panel">
+        <h2>热门评论</h2>
+        <div id="discussions" class="announcements">
+          <div class="discussion-card">
+            <div class="discussion-meta">正在读取热门讨论...</div>
+          </div>
+        </div>
+      </div>
+
       <p class="notice">提示：A股休市、停牌、集合竞价或接口延迟时，最新价和五档盘口可能为空或停留在上一交易时段。本页面不构成任何投资建议。</p>
     </section>
   </main>
+
+  <div id="announcementReader" class="reader-modal" aria-hidden="true">
+    <div class="reader-shell" role="dialog" aria-modal="true" aria-labelledby="readerTitle">
+      <div class="reader-head">
+        <div class="reader-title">
+          <strong id="readerTitle">公告阅读</strong>
+          <span id="readerMeta">正在打开公告...</span>
+        </div>
+        <div class="reader-actions">
+          <a id="readerExternal" class="reader-link" href="#" target="_blank" rel="noreferrer">新窗口</a>
+          <button id="readerClose" class="reader-close" type="button">关闭</button>
+        </div>
+      </div>
+      <iframe id="readerFrame" class="reader-frame" title="公告正文"></iframe>
+    </div>
+  </div>
 
   <script>
     const stock = {
@@ -643,7 +797,14 @@
       stateNote: document.getElementById("stateNote"),
       refreshButtons: document.querySelectorAll(".refresh-option"),
       trendChart: document.getElementById("trendChart"),
-      announcements: document.getElementById("announcements")
+      announcements: document.getElementById("announcements"),
+      discussions: document.getElementById("discussions"),
+      reader: document.getElementById("announcementReader"),
+      readerTitle: document.getElementById("readerTitle"),
+      readerMeta: document.getElementById("readerMeta"),
+      readerFrame: document.getElementById("readerFrame"),
+      readerExternal: document.getElementById("readerExternal"),
+      readerClose: document.getElementById("readerClose")
     };
 
     const state = {
@@ -652,13 +813,30 @@
       inFlight: false,
       announcementTimer: null,
       announcementInFlight: false,
-      refreshInterval: 3000
+      discussionTimer: null,
+      discussionInFlight: false,
+      refreshInterval: 3000,
+      announcements: []
     };
 
     function numberValue(value) {
       if (value === null || value === undefined || value === "" || value === "-") return null;
       const parsed = Number(value);
       return Number.isFinite(parsed) ? parsed : null;
+    }
+
+    function escapeHtml(value) {
+      return String(value || "").replace(/[&<>"']/g, char => ({
+        "&": "&amp;",
+        "<": "&lt;",
+        ">": "&gt;",
+        "\"": "&quot;",
+        "'": "&#39;"
+      })[char]);
+    }
+
+    function stripHtml(value) {
+      return String(value || "").replace(/<[^>]*>/g, "").replace(/\s+/g, " ").trim();
     }
 
     function scaled(value, digits = 2) {
@@ -980,7 +1158,7 @@
       if (oldScript) oldScript.remove();
     }
 
-    function jsonp(url, prefix, timeoutMs = 8000) {
+    function jsonp(url, prefix, timeoutMs = 8000, callbackParam = "cb") {
       state.requestId += 1;
       const id = prefix + state.requestId;
       const callbackName = "__stJinglan" + prefix + state.requestId;
@@ -1005,7 +1183,7 @@
         };
 
         script.id = id;
-        script.src = url + separator + "cb=" + callbackName + "&_=" + Date.now();
+        script.src = url + separator + callbackParam + "=" + callbackName + "&_=" + Date.now();
         script.onerror = () => {
           cleanup();
           reject(new Error(prefix + " load failed"));
@@ -1051,15 +1229,15 @@
       el.announcements.innerHTML = items.map(item => {
         const tag = impactTag(item);
         const category = announcementCategory(item);
-        const url = item.pdfUrl || "https://data.eastmoney.com/notices/detail/000711/" + item.art_code + ".html";
+        const title = item.title || "未命名公告";
         return `
           <article class="announcement-card">
             <div class="announcement-meta">
               <span>${shortDate(item.notice_date)}</span>
-              <span>${category}</span>
+              <span>${escapeHtml(category)}</span>
               <span class="announcement-tag ${tag.neutral ? "neutral" : ""}">${tag.text}</span>
             </div>
-            <a href="${url}" target="_blank" rel="noreferrer">${item.title || "未命名公告"}</a>
+            <button class="announcement-open" type="button" data-art-code="${escapeHtml(item.art_code)}">${escapeHtml(title)}</button>
           </article>
         `;
       }).join("");
@@ -1078,11 +1256,20 @@
             const detailUrl = "https://np-cnotice-stock.eastmoney.com/api/content/ann?art_code=" + encodeURIComponent(item.art_code) + "&client_source=web&page_index=1";
             const detail = await jsonp(detailUrl, "AnnouncementDetail", 8000);
             const data = detail && detail.data ? detail.data : {};
-            return { ...item, pdfUrl: data.attach_url_web || data.attach_url };
+            return {
+              ...item,
+              detailUrl: "https://data.eastmoney.com/notices/detail/000711/" + item.art_code + ".html",
+              pdfUrl: data.attach_url_web || data.attach_url,
+              content: data.notice_content || data.content || data.ann_content || ""
+            };
           } catch (error) {
-            return item;
+            return {
+              ...item,
+              detailUrl: "https://data.eastmoney.com/notices/detail/000711/" + item.art_code + ".html"
+            };
           }
         }));
+        state.announcements = details;
         renderAnnouncements(details);
       } catch (error) {
         el.announcements.innerHTML = `
@@ -1093,6 +1280,111 @@
         `;
       } finally {
         state.announcementInFlight = false;
+      }
+    }
+
+    function openAnnouncementReader(artCode) {
+      const item = state.announcements.find(entry => String(entry.art_code) === String(artCode));
+      if (!item) return;
+      const title = item.title || "公告阅读";
+      const detailUrl = item.detailUrl || ("https://data.eastmoney.com/notices/detail/000711/" + item.art_code + ".html");
+      el.readerTitle.textContent = title;
+      el.readerMeta.textContent = shortDate(item.notice_date) + " · " + announcementCategory(item);
+      el.readerExternal.href = detailUrl;
+      if (item.content) {
+        const body = escapeHtml(stripHtml(item.content)).replace(/\n/g, "<br>");
+        el.readerFrame.srcdoc = "<!doctype html><html><head><meta charset='utf-8'><meta name='viewport' content='width=device-width,initial-scale=1'><style>body{font-family:Microsoft YaHei,Arial,sans-serif;line-height:1.7;padding:16px;color:#18202f}h1{font-size:20px;line-height:1.35}p{margin:0 0 12px}</style></head><body><h1>" + escapeHtml(title) + "</h1><p>" + body + "</p></body></html>";
+        el.readerFrame.removeAttribute("src");
+      } else {
+        el.readerFrame.removeAttribute("srcdoc");
+        el.readerFrame.src = detailUrl;
+      }
+      el.reader.classList.add("open");
+      el.reader.setAttribute("aria-hidden", "false");
+    }
+
+    function closeAnnouncementReader() {
+      el.reader.classList.remove("open");
+      el.reader.setAttribute("aria-hidden", "true");
+      el.readerFrame.removeAttribute("srcdoc");
+      el.readerFrame.removeAttribute("src");
+    }
+
+    function renderDiscussionMessage(message) {
+      el.discussions.innerHTML = `
+        <div class="discussion-card">
+          <div class="discussion-meta">${message}</div>
+          <a class="quick-link" href="https://guba.eastmoney.com/list,000711.html" target="_blank" rel="noreferrer">
+            <strong>打开东方财富股吧</strong>
+            <span>查看 ST京蓝 最新热门讨论</span>
+          </a>
+        </div>
+      `;
+    }
+
+    function discussionPosts(payload) {
+      const result = payload && payload.result ? payload.result : payload;
+      if (Array.isArray(result)) return result;
+      if (result && Array.isArray(result.data)) return result.data;
+      if (result && Array.isArray(result.list)) return result.list;
+      if (payload && payload.data && Array.isArray(payload.data.list)) return payload.data.list;
+      return [];
+    }
+
+    function discussionUrl(post) {
+      const id = post.post_id || post.postid || post.id;
+      if (id) return "https://guba.eastmoney.com/news,000711," + id + ".html";
+      return "https://guba.eastmoney.com/list,000711.html";
+    }
+
+    function renderDiscussions(posts) {
+      const usable = posts.filter(Boolean).slice(0, 5);
+      if (!usable.length) {
+        renderDiscussionMessage("暂未读取到热门评论。");
+        return;
+      }
+
+      el.discussions.innerHTML = usable.map(post => {
+        const title = post.post_title || post.title || post.post_content || "未命名讨论";
+        const summary = stripHtml(post.post_abstract || post.post_summary || post.digest || "");
+        const author = post.user_nickname || post.user_name || "股吧用户";
+        const time = shortDate(post.post_publish_time || post.post_last_time || post.update_time);
+        const reads = post.post_click_count || post.click_count || post.read_count || "--";
+        const replies = post.post_comment_count || post.reply_count || post.comment_count || "--";
+        const url = discussionUrl(post);
+        return `
+          <article class="discussion-card">
+            <div class="discussion-meta">
+              <span>${escapeHtml(time)}</span>
+              <span>${escapeHtml(author)}</span>
+              <span>阅读 ${escapeHtml(reads)}</span>
+              <span>评论 ${escapeHtml(replies)}</span>
+            </div>
+            <a class="discussion-open" href="${url}" target="_blank" rel="noreferrer">${escapeHtml(stripHtml(title))}</a>
+            ${summary ? `<p class="discussion-summary">${escapeHtml(summary)}</p>` : ""}
+          </article>
+        `;
+      }).join("");
+    }
+
+    async function loadDiscussions() {
+      if (state.discussionInFlight) return;
+      state.discussionInFlight = true;
+      try {
+        const hotUrl = "https://gbapi.eastmoney.com/webarticlelist/api/Article/Articlelist?code=000711&sorttype=1&page=1&ps=5&plat=wap&version=300&product=guba";
+        const payload = await jsonp(hotUrl, "DiscussionHot", 8000, "callback");
+        const posts = discussionPosts(payload);
+        renderDiscussions(posts);
+      } catch (error) {
+        try {
+          const latestUrl = "https://gbapi.eastmoney.com/webarticlelist/api/Article/Articlelist?code=000711&sorttype=0&page=1&ps=5&plat=wap&version=300&product=guba";
+          const payload = await jsonp(latestUrl, "DiscussionLatest", 8000, "callback");
+          renderDiscussions(discussionPosts(payload));
+        } catch (fallbackError) {
+          renderDiscussionMessage("热门评论读取失败，可能是股吧接口限制。");
+        }
+      } finally {
+        state.discussionInFlight = false;
       }
     }
 
@@ -1285,12 +1577,30 @@
       });
     });
 
+    el.announcements.addEventListener("click", event => {
+      const button = event.target.closest(".announcement-open");
+      if (!button) return;
+      openAnnouncementReader(button.dataset.artCode);
+    });
+
+    el.readerClose.addEventListener("click", closeAnnouncementReader);
+    el.reader.addEventListener("click", event => {
+      if (event.target === el.reader) closeAnnouncementReader();
+    });
+    window.addEventListener("keydown", event => {
+      if (event.key === "Escape" && el.reader.classList.contains("open")) {
+        closeAnnouncementReader();
+      }
+    });
+
     updateTodayLabel();
     renderMetricsFromEastmoney({});
     renderOrderBookFromEastmoney({});
     renderChartMessage("等待分时走势...");
     loadAnnouncements();
+    loadDiscussions();
     state.announcementTimer = window.setInterval(loadAnnouncements, 60000);
+    state.discussionTimer = window.setInterval(loadDiscussions, 120000);
     loadQuote();
     resetTimer();
   </script>
