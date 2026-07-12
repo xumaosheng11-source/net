@@ -763,7 +763,7 @@
       </div>
 
       <div class="panel">
-        <h2>热门评论</h2>
+        <h2>点击查看散户评论</h2>
         <div id="discussions" class="announcements">
           <div class="discussion-card">
             <div class="discussion-meta">正在读取热门讨论...</div>
@@ -1332,8 +1332,8 @@
         <div class="discussion-card">
           <div class="discussion-meta">${message}</div>
           <a class="quick-link" href="https://guba.eastmoney.com/list,000711.html" target="_blank" rel="noreferrer">
-            <strong>打开东方财富股吧</strong>
-            <span>查看 ST京蓝 最新热门讨论</span>
+            <strong>点击查看散户评论</strong>
+            <span>打开 ST京蓝 散户讨论区</span>
           </a>
         </div>
       `;
@@ -1357,7 +1357,7 @@
     function renderDiscussions(posts) {
       const usable = posts.filter(Boolean).slice(0, 5);
       if (!usable.length) {
-        renderDiscussionMessage("暂未读取到热门评论。");
+        renderDiscussionMessage("暂未读取到散户评论。");
         return;
       }
 
@@ -1398,7 +1398,7 @@
           const payload = await jsonp(latestUrl, "DiscussionLatest", 8000, "callback");
           renderDiscussions(discussionPosts(payload));
         } catch (fallbackError) {
-          renderDiscussionMessage("热门评论读取失败，可能是股吧接口限制。");
+          renderDiscussionMessage("散户评论读取失败，可能是股吧接口限制。");
         }
       } finally {
         state.discussionInFlight = false;
