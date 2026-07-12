@@ -1,4 +1,4 @@
-<!doctype html>
+﻿<!doctype html>
 <html lang="zh-CN">
 <head>
   <meta charset="utf-8">
@@ -56,12 +56,54 @@
       gap: 7px;
     }
 
+    .service-greeting {
+      display: inline-flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 14px;
+      width: fit-content;
+      max-width: 100%;
+      padding: 10px 12px;
+      border: 1px solid #bfdbfe;
+      border-radius: 8px;
+      background: linear-gradient(135deg, #eff6ff, #ffffff);
+      box-shadow: 0 10px 24px rgba(37, 99, 235, .10);
+    }
+
+    .service-copy {
+      display: grid;
+      gap: 3px;
+      min-width: 0;
+    }
+
+    .greeting-kicker {
+      margin: 0;
+      color: #2563eb;
+      font-size: 12px;
+      font-weight: 800;
+      line-height: 1.1;
+    }
+
     .greeting {
       margin: 0;
       color: var(--ink);
       font-size: 18px;
       font-weight: 800;
       line-height: 1.25;
+      overflow-wrap: anywhere;
+    }
+
+    .service-chip {
+      display: inline-flex;
+      align-items: center;
+      min-height: 26px;
+      padding: 0 10px;
+      border-radius: 999px;
+      background: #111827;
+      color: #ffffff;
+      font-size: 12px;
+      font-weight: 800;
+      white-space: nowrap;
     }
 
     .label-row {
@@ -761,8 +803,18 @@
         margin-bottom: 12px;
       }
 
+      .service-greeting {
+        width: 100%;
+        align-items: flex-start;
+      }
+
       .greeting {
-        font-size: 17px;
+        font-size: 16px;
+      }
+
+      .service-chip {
+        min-height: 24px;
+        padding: 0 8px;
       }
 
       h1 {
@@ -820,7 +872,13 @@
   <main class="shell">
     <header class="topbar">
       <div class="identity">
-        <p class="greeting">徐苹贵，您好！</p>
+        <div class="service-greeting">
+          <div class="service-copy">
+            <p class="greeting-kicker">专属看盘服务</p>
+            <p class="greeting">徐苹贵，您好。今日看盘信息已为您整理。</p>
+          </div>
+          <span class="service-chip">实时盯盘</span>
+        </div>
         <div class="label-row">
           <span id="todayDate">今日日期：--</span>
           <span class="badge">A股</span>
