@@ -101,8 +101,7 @@
       justify-content: flex-end;
     }
 
-    button,
-    select {
+    button {
       border: 1px solid var(--line);
       background: var(--panel);
       color: var(--ink);
@@ -118,7 +117,7 @@
       cursor: pointer;
     }
 
-    button.primary {
+    button.refresh-option.active {
       background: #111827;
       border-color: #111827;
       color: #ffffff;
@@ -560,15 +559,8 @@
         <h1>ST京蓝 实时行情</h1>
       </div>
       <div class="controls" aria-label="行情刷新控制">
-        <select id="refreshInterval" aria-label="自动刷新间隔">
-          <option value="1000">1秒极速刷新</option>
-          <option value="3000" selected>3秒刷新</option>
-          <option value="5000">5秒刷新</option>
-          <option value="10000">10秒刷新</option>
-          <option value="30000">30秒刷新</option>
-          <option value="0">暂停自动刷新</option>
-        </select>
-        <button id="refreshButton" class="primary" type="button">刷新</button>
+        <button class="refresh-option active" type="button" data-refresh="3000" aria-pressed="true">3秒刷新</button>
+        <button class="refresh-option" type="button" data-refresh="1000" aria-pressed="false">1秒刷新</button>
       </div>
     </header>
 
@@ -649,8 +641,7 @@
       toast: document.getElementById("toast"),
       marketState: document.getElementById("marketState"),
       stateNote: document.getElementById("stateNote"),
-      refreshInterval: document.getElementById("refreshInterval"),
-      refreshButton: document.getElementById("refreshButton"),
+      refreshButtons: document.querySelectorAll(".refresh-option"),
       trendChart: document.getElementById("trendChart"),
       announcements: document.getElementById("announcements")
     };
@@ -660,7 +651,8 @@
       requestId: 0,
       inFlight: false,
       announcementTimer: null,
-      announcementInFlight: false
+      announcementInFlight: false,
+      refreshInterval: 3000
     };
 
     function numberValue(value) {
@@ -1248,7 +1240,6 @@
     async function loadQuote() {
       if (state.inFlight) return;
       state.inFlight = true;
-      el.refreshButton.disabled = true;
       try {
         const trendRequest = loadEastmoneyTrend().catch(() => {
           renderChartMessage("分时走势暂时没有返回。休市、停牌、网络限制或行情源延迟时，曲线图可能为空。");
@@ -1266,7 +1257,6 @@
         await trendRequest;
       } finally {
         state.inFlight = false;
-        el.refreshButton.disabled = false;
       }
     }
 
@@ -1275,17 +1265,25 @@
         window.clearInterval(state.timer);
         state.timer = null;
       }
-      const interval = Number(el.refreshInterval.value);
-      if (interval > 0) {
-        state.timer = window.setInterval(loadQuote, interval);
-      }
+      state.timer = window.setInterval(loadQuote, state.refreshInterval);
     }
 
-    el.refreshButton.addEventListener("click", () => {
-      loadAnnouncements();
+    function setRefreshInterval(interval) {
+      state.refreshInterval = interval;
+      el.refreshButtons.forEach(button => {
+        const active = Number(button.dataset.refresh) === interval;
+        button.classList.toggle("active", active);
+        button.setAttribute("aria-pressed", active ? "true" : "false");
+      });
+      resetTimer();
       loadQuote();
+    }
+
+    el.refreshButtons.forEach(button => {
+      button.addEventListener("click", () => {
+        setRefreshInterval(Number(button.dataset.refresh));
+      });
     });
-    el.refreshInterval.addEventListener("change", resetTimer);
 
     updateTodayLabel();
     renderMetricsFromEastmoney({});
