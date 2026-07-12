@@ -839,6 +839,18 @@
       displayCode: "000711"
     };
 
+    const fallbackAnnouncements = [
+      {
+        art_code: "AN202607031627694711",
+        title: "ST京蓝:关于公司股票交易异常波动情况的公告",
+        notice_date: "2026-07-03",
+        columns: [{ column_name: "股票交易异常波动公告" }],
+        detailUrl: "https://data.eastmoney.com/notices/detail/000711/AN202607031627694711.html",
+        pdfUrl: "https://data.eastmoney.com/notices/detail/000711/AN202607031627694711.html",
+        content: "微信内置浏览器暂时无法连接公告接口时，页面会显示最近缓存公告。请点击“下载完整公告文件”或下方官方公告入口查看公告全文，并以交易所和公司正式披露为准。"
+      }
+    ];
+
     const el = {
       price: document.getElementById("price"),
       delta: document.getElementById("delta"),
@@ -1277,13 +1289,13 @@
       `;
     }
 
-    function renderAnnouncements(items) {
+    function renderAnnouncements(items, note = "") {
       if (!items.length) {
         renderAnnouncementMessage("暂未读取到公告。");
         return;
       }
 
-      el.announcements.innerHTML = items.map(item => {
+      const cards = items.map(item => {
         const tag = impactTag(item);
         const category = announcementCategory(item);
         const title = item.title || "未命名公告";
@@ -1298,6 +1310,22 @@
           </article>
         `;
       }).join("");
+
+      const noteCard = note ? `
+        <div class="announcement-card">
+          <div class="announcement-meta">${escapeHtml(note)}</div>
+          <a class="quick-link" href="https://data.eastmoney.com/notices/stock/000711.html" target="_blank" rel="noreferrer">
+            <strong>打开东方财富公告汇总</strong>
+            <span>接口恢复前，可在这里查看官方公告</span>
+          </a>
+          <a class="quick-link" href="https://www.cninfo.com.cn/new/disclosure/stock?stockCode=000711&orgId=gssz0000711#latestAnnouncement" target="_blank" rel="noreferrer">
+            <strong>打开巨潮资讯公告</strong>
+            <span>上市公司公告官方披露平台</span>
+          </a>
+        </div>
+      ` : "";
+
+      el.announcements.innerHTML = noteCard + cards;
     }
 
     function wait(ms) {
@@ -1346,12 +1374,8 @@
           }
         }
       } catch (error) {
-        el.announcements.innerHTML = `
-          <div class="announcement-card">
-            <div class="announcement-meta">公告读取失败</div>
-            <a href="https://data.eastmoney.com/notices/stock/000711.html" target="_blank" rel="noreferrer">打开东方财富公告汇总</a>
-          </div>
-        `;
+        state.announcements = fallbackAnnouncements;
+        renderAnnouncements(fallbackAnnouncements, "微信稳定兜底：实时公告接口暂时不可用，下面先显示页面内置最近公告。接口恢复后会自动更新。");
       } finally {
         state.announcementInFlight = false;
       }
