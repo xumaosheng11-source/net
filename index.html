@@ -3,7 +3,17 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>ST京蓝 000711 实时行情看板</title>
+  <title>徐家专属看盘系统｜ST京蓝实时看盘</title>
+  <meta name="description" content="ST京蓝实时行情、分时走势、主力资金、公告和散户评论，一页查看。">
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="徐家专属看盘系统">
+  <meta property="og:description" content="点击查看 ST京蓝实时行情、资金流、公告和散户评论。">
+  <meta property="og:url" content="https://xumaosheng11-source.github.io/net/">
+  <meta property="og:image" content="https://xumaosheng11-source.github.io/net/share-card.png">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="徐家专属看盘系统">
+  <meta name="twitter:description" content="点击查看 ST京蓝实时行情、资金流、公告和散户评论。">
+  <meta name="twitter:image" content="https://xumaosheng11-source.github.io/net/share-card.png">
   <style>
     :root {
       color-scheme: light;
@@ -1561,8 +1571,8 @@
 
     function renderMetricsFromEastmoney(data) {
       const prev = emPrice(data, "f60");
-      const limitUp = prev ? prev * 1.05 : null;
-      const limitDown = prev ? prev * .95 : null;
+      const limitUp = prev ? prev * 1.10 : null;
+      const limitDown = prev ? prev * .90 : null;
       const metrics = [
         ["换手率", pctText(emPct(data, "f168"))],
         ["量比", ratioText(emPct(data, "f50"))],
@@ -1572,7 +1582,7 @@
         ["最低", priceText(emPrice(data, "f45"))],
         ["成交量", lotsText(data.f47)],
         ["成交额", amountText(data.f48)],
-        ["涨停/跌停参考", limitUp && limitDown ? limitUp.toFixed(2) + " / " + limitDown.toFixed(2) : "--"]
+        ["10%涨停/跌停参考", limitUp && limitDown ? limitUp.toFixed(2) + " / " + limitDown.toFixed(2) : "--"]
       ];
 
       renderMetricCards(metrics);
