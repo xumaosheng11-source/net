@@ -661,9 +661,22 @@
         padding-bottom: 8px;
       }
 
-      .metric-grid,
+      .metric-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 8px;
+      }
+
       .links {
         grid-template-columns: 1fr;
+      }
+
+      .metric {
+        min-height: 74px;
+        padding: 10px;
+      }
+
+      .metric strong {
+        font-size: 18px;
       }
 
       .book-row {
@@ -770,7 +783,7 @@
           <span id="readerMeta">正在打开公告...</span>
         </div>
         <div class="reader-actions">
-          <a id="readerExternal" class="reader-link" href="#" target="_blank" rel="noreferrer">新窗口</a>
+          <a id="readerExternal" class="reader-link" href="#" target="_blank" rel="noreferrer">下载完整公告文件</a>
           <button id="readerClose" class="reader-close" type="button">关闭</button>
         </div>
       </div>
@@ -1046,13 +1059,14 @@
       const limitUp = prev ? prev * 1.05 : null;
       const limitDown = prev ? prev * .95 : null;
       const metrics = [
+        ["换手率", pctText(emPct(data, "f168"))],
+        ["量比", ratioText(emPct(data, "f50"))],
         ["今开", priceText(emPrice(data, "f46"))],
         ["昨收", priceText(prev)],
         ["最高", priceText(emPrice(data, "f44"))],
         ["最低", priceText(emPrice(data, "f45"))],
         ["成交量", lotsText(data.f47)],
         ["成交额", amountText(data.f48)],
-        ["换手/量比", pctText(emPct(data, "f168")) + " / " + ratioText(emPct(data, "f50"))],
         ["涨停/跌停参考", limitUp && limitDown ? limitUp.toFixed(2) + " / " + limitDown.toFixed(2) : "--"]
       ];
 
@@ -1136,6 +1150,8 @@
       el.marketState.textContent = "简版行情";
       el.stateNote.textContent = "东方财富接口不可用时的备用价格源，盘口和完整字段会减少。";
       el.metrics.innerHTML = [
+        ["换手率", "--"],
+        ["量比", "--"],
         ["最新价", priceText(current)],
         ["涨跌额", signedText(change)],
         ["涨跌幅", pctText(changePct)],
@@ -1288,9 +1304,10 @@
       if (!item) return;
       const title = item.title || "公告阅读";
       const detailUrl = item.detailUrl || ("https://data.eastmoney.com/notices/detail/000711/" + item.art_code + ".html");
+      const pdfUrl = item.pdfUrl || detailUrl;
       el.readerTitle.textContent = title;
       el.readerMeta.textContent = shortDate(item.notice_date) + " · " + announcementCategory(item);
-      el.readerExternal.href = detailUrl;
+      el.readerExternal.href = pdfUrl;
       if (item.content) {
         const body = escapeHtml(stripHtml(item.content)).replace(/\n/g, "<br>");
         el.readerFrame.srcdoc = "<!doctype html><html><head><meta charset='utf-8'><meta name='viewport' content='width=device-width,initial-scale=1'><style>body{font-family:Microsoft YaHei,Arial,sans-serif;line-height:1.7;padding:16px;color:#18202f}h1{font-size:20px;line-height:1.35}p{margin:0 0 12px}</style></head><body><h1>" + escapeHtml(title) + "</h1><p>" + body + "</p></body></html>";
