@@ -1300,34 +1300,51 @@
       }).join("");
     }
 
+    function wait(ms) {
+      return new Promise(resolve => window.setTimeout(resolve, ms));
+    }
+
+    async function fetchAnnouncementsOnce() {
+      const listUrl = "https://np-anotice-stock.eastmoney.com/api/security/ann?sr=-1&page_size=8&page_index=1&ann_type=A&client_source=web&stock_list=000711";
+      const payload = await jsonp(listUrl, "AnnouncementList", 8000);
+      const list = payload && payload.data && Array.isArray(payload.data.list) ? payload.data.list : [];
+      return Promise.all(list.map(async item => {
+        try {
+          const detailUrl = "https://np-cnotice-stock.eastmoney.com/api/content/ann?art_code=" + encodeURIComponent(item.art_code) + "&client_source=web&page_index=1";
+          const detail = await jsonp(detailUrl, "AnnouncementDetail", 8000);
+          const data = detail && detail.data ? detail.data : {};
+          return {
+            ...item,
+            detailUrl: "https://data.eastmoney.com/notices/detail/000711/" + item.art_code + ".html",
+            pdfUrl: data.attach_url_web || data.attach_url,
+            content: data.notice_content || data.content || data.ann_content || ""
+          };
+        } catch (error) {
+          return {
+            ...item,
+            detailUrl: "https://data.eastmoney.com/notices/detail/000711/" + item.art_code + ".html"
+          };
+        }
+      }));
+    }
+
     async function loadAnnouncements() {
       if (state.announcementInFlight) return;
       state.announcementInFlight = true;
       try {
-        renderAnnouncementMessage("正在读取公告...");
-        const listUrl = "https://np-anotice-stock.eastmoney.com/api/security/ann?sr=-1&page_size=8&page_index=1&ann_type=A&client_source=web&stock_list=000711";
-        const payload = await jsonp(listUrl, "AnnouncementList", 8000);
-        const list = payload && payload.data && Array.isArray(payload.data.list) ? payload.data.list : [];
-        const details = await Promise.all(list.map(async item => {
+        const maxAttempts = 3;
+        for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
           try {
-            const detailUrl = "https://np-cnotice-stock.eastmoney.com/api/content/ann?art_code=" + encodeURIComponent(item.art_code) + "&client_source=web&page_index=1";
-            const detail = await jsonp(detailUrl, "AnnouncementDetail", 8000);
-            const data = detail && detail.data ? detail.data : {};
-            return {
-              ...item,
-              detailUrl: "https://data.eastmoney.com/notices/detail/000711/" + item.art_code + ".html",
-              pdfUrl: data.attach_url_web || data.attach_url,
-              content: data.notice_content || data.content || data.ann_content || ""
-            };
+            renderAnnouncementMessage(attempt === 1 ? "正在读取公告..." : "公告读取失败，正在自动重试 " + attempt + "/" + maxAttempts + "...");
+            const details = await fetchAnnouncementsOnce();
+            state.announcements = details;
+            renderAnnouncements(details);
+            return;
           } catch (error) {
-            return {
-              ...item,
-              detailUrl: "https://data.eastmoney.com/notices/detail/000711/" + item.art_code + ".html"
-            };
+            if (attempt === maxAttempts) throw error;
+            await wait(900 * attempt);
           }
-        }));
-        state.announcements = details;
-        renderAnnouncements(details);
+        }
       } catch (error) {
         el.announcements.innerHTML = `
           <div class="announcement-card">
@@ -1371,7 +1388,7 @@
     function renderDiscussionMessage(message) {
       el.discussions.innerHTML = `
         <div class="discussion-card">
-          <div class="discussion-meta">${message}</div>
+          ${message ? `<div class="discussion-meta">${message}</div>` : ""}
           <a class="quick-link" href="https://guba.eastmoney.com/list,000711.html" target="_blank" rel="noreferrer">
             <strong>点击查看散户评论</strong>
             <span>打开 ST京蓝 散户讨论区</span>
@@ -1398,7 +1415,7 @@
     function renderDiscussions(posts) {
       const usable = posts.filter(Boolean).slice(0, 5);
       if (!usable.length) {
-        renderDiscussionMessage("暂未读取到散户评论。");
+        renderDiscussionMessage("");
         return;
       }
 
