@@ -257,6 +257,16 @@
       display: grid;
       align-content: space-between;
       gap: 8px;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .metric::before {
+      content: "";
+      position: absolute;
+      inset: 0 auto 0 0;
+      width: 4px;
+      background: #cbd5e1;
     }
 
     .metric span {
@@ -268,6 +278,84 @@
       font-size: 20px;
       line-height: 1.1;
       overflow-wrap: anywhere;
+    }
+
+    .metric-liquidity {
+      border-color: #bfdbfe;
+      background: linear-gradient(135deg, #eff6ff, #ffffff);
+    }
+
+    .metric-liquidity::before {
+      background: #2563eb;
+    }
+
+    .metric-liquidity strong {
+      color: #1d4ed8;
+    }
+
+    .metric-open {
+      border-color: #c7d2fe;
+      background: linear-gradient(135deg, #eef2ff, #ffffff);
+    }
+
+    .metric-open::before {
+      background: #4f46e5;
+    }
+
+    .metric-open strong {
+      color: #3730a3;
+    }
+
+    .metric-high {
+      border-color: #fecaca;
+      background: linear-gradient(135deg, #fef2f2, #ffffff);
+    }
+
+    .metric-high::before {
+      background: #dc2626;
+    }
+
+    .metric-high strong {
+      color: #b91c1c;
+    }
+
+    .metric-low {
+      border-color: #bbf7d0;
+      background: linear-gradient(135deg, #f0fdf4, #ffffff);
+    }
+
+    .metric-low::before {
+      background: #16a34a;
+    }
+
+    .metric-low strong {
+      color: #15803d;
+    }
+
+    .metric-volume {
+      border-color: #ddd6fe;
+      background: linear-gradient(135deg, #f5f3ff, #ffffff);
+    }
+
+    .metric-volume::before {
+      background: #7c3aed;
+    }
+
+    .metric-volume strong {
+      color: #5b21b6;
+    }
+
+    .metric-limit {
+      border-color: #fed7aa;
+      background: linear-gradient(135deg, #fff7ed, #ffffff);
+    }
+
+    .metric-limit::before {
+      background: #ea580c;
+    }
+
+    .metric-limit strong {
+      color: #c2410c;
     }
 
     .panel {
@@ -1107,6 +1195,25 @@
       return ["休市或未开盘", "当前不在A股连续竞价时段。"];
     }
 
+    function metricTone(label) {
+      if (label === "换手率" || label === "量比") return "metric-liquidity";
+      if (label === "今开" || label === "昨收" || label === "最新价" || label === "涨跌额" || label === "涨跌幅") return "metric-open";
+      if (label === "最高") return "metric-high";
+      if (label === "最低") return "metric-low";
+      if (label === "成交量" || label === "成交额") return "metric-volume";
+      if (label.includes("涨停") || label.includes("跌停")) return "metric-limit";
+      return "";
+    }
+
+    function renderMetricCards(metrics) {
+      el.metrics.innerHTML = metrics.map(([label, value]) => `
+        <div class="metric ${metricTone(label)}">
+          <span>${label}</span>
+          <strong>${value}</strong>
+        </div>
+      `).join("");
+    }
+
     function renderMetricsFromEastmoney(data) {
       const prev = emPrice(data, "f60");
       const limitUp = prev ? prev * 1.05 : null;
@@ -1123,12 +1230,7 @@
         ["涨停/跌停参考", limitUp && limitDown ? limitUp.toFixed(2) + " / " + limitDown.toFixed(2) : "--"]
       ];
 
-      el.metrics.innerHTML = metrics.map(([label, value]) => `
-        <div class="metric">
-          <span>${label}</span>
-          <strong>${value}</strong>
-        </div>
-      `).join("");
+      renderMetricCards(metrics);
     }
 
     function renderOrderBookFromEastmoney(data) {
@@ -1202,7 +1304,7 @@
       el.stamp.textContent = "行情时间：腾讯简版行情；本地刷新：" + new Date().toLocaleTimeString("zh-CN", { hour12: false });
       el.marketState.textContent = "简版行情";
       el.stateNote.textContent = "东方财富接口不可用时的备用价格源，盘口和完整字段会减少。";
-      el.metrics.innerHTML = [
+      renderMetricCards([
         ["换手率", "--"],
         ["量比", "--"],
         ["最新价", priceText(current)],
@@ -1213,12 +1315,7 @@
         ["证券代码", stock.displayCode],
         ["数据模式", "备用简版"],
         ["刷新状态", "成功"]
-      ].map(([label, value]) => `
-        <div class="metric">
-          <span>${label}</span>
-          <strong>${value}</strong>
-        </div>
-      `).join("");
+      ]);
       el.orderBook.innerHTML = `<div class="stamp">备用行情源不提供五档盘口。可点下方东方财富行情查看盘口明细。</div>`;
     }
 
