@@ -1295,7 +1295,7 @@
         return;
       }
 
-      const cards = items.map(item => {
+      const cards = items.slice(0, 5).map(item => {
         const tag = impactTag(item);
         const category = announcementCategory(item);
         const title = item.title || "未命名公告";
@@ -1315,12 +1315,8 @@
         <div class="announcement-card">
           <div class="announcement-meta">${escapeHtml(note)}</div>
           <a class="quick-link" href="https://data.eastmoney.com/notices/stock/000711.html" target="_blank" rel="noreferrer">
-            <strong>打开东方财富公告汇总</strong>
+            <strong>打开公告汇总</strong>
             <span>接口恢复前，可在这里查看官方公告</span>
-          </a>
-          <a class="quick-link" href="https://www.cninfo.com.cn/new/disclosure/stock?stockCode=000711&orgId=gssz0000711#latestAnnouncement" target="_blank" rel="noreferrer">
-            <strong>打开巨潮资讯公告</strong>
-            <span>上市公司公告官方披露平台</span>
           </a>
         </div>
       ` : "";
@@ -1333,7 +1329,7 @@
     }
 
     async function fetchAnnouncementsOnce() {
-      const listUrl = "https://np-anotice-stock.eastmoney.com/api/security/ann?sr=-1&page_size=8&page_index=1&ann_type=A&client_source=web&stock_list=000711";
+      const listUrl = "https://np-anotice-stock.eastmoney.com/api/security/ann?sr=-1&page_size=5&page_index=1&ann_type=A&client_source=web&stock_list=000711";
       const payload = await jsonp(listUrl, "AnnouncementList", 8000);
       const list = payload && payload.data && Array.isArray(payload.data.list) ? payload.data.list : [];
       return Promise.all(list.map(async item => {
