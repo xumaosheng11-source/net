@@ -466,21 +466,21 @@
     }
 
     .intent-buy .intent-verdict {
-      border-color: #bbf7d0;
-      background: linear-gradient(135deg, #f0fdf4, #ffffff);
-    }
-
-    .intent-buy .intent-verdict strong {
-      color: #15803d;
-    }
-
-    .intent-sell .intent-verdict {
       border-color: #fecaca;
       background: linear-gradient(135deg, #fef2f2, #ffffff);
     }
 
-    .intent-sell .intent-verdict strong {
+    .intent-buy .intent-verdict strong {
       color: #b91c1c;
+    }
+
+    .intent-sell .intent-verdict {
+      border-color: #bbf7d0;
+      background: linear-gradient(135deg, #f0fdf4, #ffffff);
+    }
+
+    .intent-sell .intent-verdict strong {
+      color: #15803d;
     }
 
     .intent-flat .intent-verdict {
@@ -521,15 +521,15 @@
     }
 
     .intent-fill.buy {
-      background: #16a34a;
-    }
-
-    .intent-fill.sell {
       background: #dc2626;
     }
 
+    .intent-fill.sell {
+      background: #16a34a;
+    }
+
     .intent-stats {
-      display: grid;
+      display: none;
       grid-template-columns: repeat(3, minmax(0, 1fr));
       gap: 10px;
     }
@@ -843,6 +843,20 @@
       flex-wrap: wrap;
       color: var(--muted);
       font-size: 12px;
+    }
+
+    .announcement-date {
+      display: inline-flex;
+      align-items: center;
+      min-height: 26px;
+      padding: 0 10px;
+      border-radius: 999px;
+      border: 1px solid #93c5fd;
+      background: #eff6ff;
+      color: #1d4ed8;
+      font-weight: 900;
+      font-size: 13px;
+      box-shadow: 0 4px 12px rgba(37, 99, 235, .12);
     }
 
     .announcement-tag {
@@ -1314,7 +1328,8 @@
       discussionInFlight: false,
       refreshInterval: 3000,
       announcements: [],
-      latestQuote: null
+      latestQuote: null,
+      latestFundFlow: null
     };
 
     function numberValue(value) {
@@ -1588,28 +1603,8 @@
       renderMetricCards(metrics);
     }
 
-    function renderOrderBookFromEastmoney(data) {
-      const buyVolumes = ["f20", "f18", "f16", "f14", "f12"].map(key => numberValue(data[key]) || 0);
-      const sellVolumes = ["f40", "f38", "f36", "f34", "f32"].map(key => numberValue(data[key]) || 0);
-      const buyTotal = buyVolumes.reduce((sum, value) => sum + value, 0);
-      const sellTotal = sellVolumes.reduce((sum, value) => sum + value, 0);
-      const total = buyTotal + sellTotal;
-
-      if (!total) {
-        el.orderBook.innerHTML = `
-          <div class="intent-panel intent-flat">
-            <div class="intent-verdict">
-              <strong>等待盘口数据</strong>
-              <small>A股休市、停牌或行情接口延迟时，买卖意愿暂时无法判断。</small>
-            </div>
-          </div>
-        `;
-        return;
-      }
-
-      const buyPct = Math.round((buyTotal / total) * 100);
+    function intentText(buyPct) {
       const sellPct = 100 - buyPct;
-      const gap = Math.abs(buyPct - sellPct);
       let verdict = "买卖意愿均衡";
       let intentClass = "intent-flat";
       let note = "五档买卖挂单接近，暂时没有明显单边倾向。";
@@ -1624,11 +1619,19 @@
         note = "卖盘五档挂单量明显高于买盘，短线抛压需要留意。";
       }
 
+      return { sellPct, verdict, intentClass, note };
+    }
+
+    function renderIntentPanel(options) {
+      const buyPct = clamp(Math.round(options.buyPct), 0, 100);
+      const { sellPct, verdict, intentClass, note } = intentText(buyPct);
+      const source = options.source || "按实时数据判断";
+
       el.orderBook.innerHTML = `
         <div class="intent-panel ${intentClass}">
           <div class="intent-verdict">
             <strong>${verdict}</strong>
-            <small>${note}</small>
+            <small>${options.note || note}</small>
           </div>
           <div class="intent-bars" aria-label="买卖意愿占比">
             <div class="intent-row">
@@ -1642,23 +1645,92 @@
               <strong>${sellPct}%</strong>
             </div>
           </div>
-          <div class="intent-stats">
-            <div class="intent-stat">
-              <span>买盘五档合计</span>
-              <strong>${lotsText(buyTotal)}</strong>
-            </div>
-            <div class="intent-stat">
-              <span>卖盘五档合计</span>
-              <strong>${lotsText(sellTotal)}</strong>
-            </div>
-            <div class="intent-stat">
-              <span>强弱差值</span>
-              <strong>${gap}个百分点</strong>
-            </div>
-          </div>
-          <div class="stamp">按五档挂单量估算，委托可能随时撤单或变化，仅作盘口观察。</div>
+          <div class="stamp">${source}</div>
         </div>
       `;
+    }
+
+    function renderEstimatedIntent(data) {
+      const fund = state.latestFundFlow;
+      const hasQuote = data && (numberValue(data.f43) !== null || numberValue(data.f170) !== null || numberValue(data.f48) !== null);
+      const hasFund = fund && (numberValue(fund.mainNet) !== null || numberValue(fund.retailNet) !== null);
+
+      if (!hasQuote && !hasFund) {
+        el.orderBook.innerHTML = `
+          <div class="intent-panel intent-flat">
+            <div class="intent-verdict">
+              <strong>等待实时数据</strong>
+              <small>真实五档盘口暂未返回，正在等待行情或资金流数据用于估算。</small>
+            </div>
+          </div>
+        `;
+        return;
+      }
+
+      const changePct = data ? emPct(data, "f170") : null;
+      const volumeRatio = data ? emPct(data, "f50") : null;
+      const turnover = data ? emPct(data, "f168") : null;
+      const amount = data ? numberValue(data.f48) : null;
+      const mainNet = numberValue(fund && fund.mainNet) || 0;
+      const retailNet = numberValue(fund && fund.retailNet) || 0;
+      const largeTotal = (numberValue(fund && fund.largeNet) || 0) + (numberValue(fund && fund.superNet) || 0);
+      let score = 50;
+
+      if (changePct !== null) score += clamp(changePct * 2.2, -22, 22);
+      if (amount) {
+        score += clamp(mainNet / Math.max(amount, 1), -0.25, 0.25) * 64;
+        score += clamp(largeTotal / Math.max(amount, 1), -0.18, 0.18) * 52;
+        score -= clamp(retailNet / Math.max(amount, 1), -0.16, 0.16) * 20;
+      }
+      const direction = changePct === null ? Math.sign(mainNet + largeTotal) : Math.sign(changePct);
+      if (volumeRatio !== null && direction) score += clamp(volumeRatio - 1, -1, 2) * 5 * direction;
+      if (turnover !== null && direction) score += clamp(turnover / 6, 0, 1.5) * 4 * direction;
+
+      const buyPct = clamp(Math.round(score), 18, 82);
+      const sellPct = 100 - buyPct;
+      const gap = Math.abs(buyPct - sellPct);
+      const mainNetText = hasFund ? signedAmountText(mainNet) : "--";
+      renderIntentPanel({
+        buyPct,
+        note: buyPct >= 58
+          ? "盘口字段暂未返回；按实时资金流和行情强度估算，买方承接意愿相对更强。"
+          : sellPct >= 58
+            ? "盘口字段暂未返回；按实时资金流和行情强度估算，卖方抛压相对更强。"
+            : "盘口字段暂未返回；按实时资金流和行情强度估算，买卖力量暂时接近。",
+        source: "真实五档盘口暂未返回，当前按主力资金、散户净额、涨跌幅、量比、换手率实时估算。",
+        stats: [
+          { label: "估算依据", value: hasFund ? "资金流+行情" : "行情数据" },
+          { label: "主力净额", value: mainNetText },
+          { label: "强弱差值", value: gap + "个百分点" }
+        ]
+      });
+    }
+
+    function renderOrderBookFromEastmoney(data) {
+      const buyVolumes = ["f20", "f18", "f16", "f14", "f12"].map(key => numberValue(data[key]) || 0);
+      const sellVolumes = ["f40", "f38", "f36", "f34", "f32"].map(key => numberValue(data[key]) || 0);
+      const buyTotal = buyVolumes.reduce((sum, value) => sum + value, 0);
+      const sellTotal = sellVolumes.reduce((sum, value) => sum + value, 0);
+      const total = buyTotal + sellTotal;
+
+      if (!total) {
+        renderEstimatedIntent(data);
+        return;
+      }
+
+      const buyPct = Math.round((buyTotal / total) * 100);
+      const sellPct = 100 - buyPct;
+      const gap = Math.abs(buyPct - sellPct);
+
+      renderIntentPanel({
+        buyPct,
+        source: "按真实五档挂单量判断，委托可能随时撤单或变化，仅作盘口观察。",
+        stats: [
+          { label: "买盘五档合计", value: lotsText(buyTotal) },
+          { label: "卖盘五档合计", value: lotsText(sellTotal) },
+          { label: "强弱差值", value: gap + "个百分点" }
+        ]
+      });
     }
 
     function renderFundFlowEmpty(message = "正在读取东方财富资金流...") {
@@ -1715,6 +1787,7 @@
         return;
       }
 
+      state.latestFundFlow = point;
       const profile = participationProfile(point, state.latestQuote);
       const mainShare = profile.mainShare;
       const retailShare = profile.retailShare;
@@ -1759,6 +1832,7 @@
         <div class="stamp">${sourceText}${sourceTime}。${profile.basis}，不是股东持仓真实比例，仅作盘面观察。</div>
       `;
       el.fundFlow.dataset.ready = "true";
+      renderOrderBookFromEastmoney(state.latestQuote || {});
     }
 
     function latestFundFlowPoint(payload) {
@@ -1909,7 +1983,7 @@
         return `
           <article class="announcement-card">
             <div class="announcement-meta">
-              <span>${shortDate(item.notice_date)}</span>
+              <span class="announcement-date">${shortDate(item.notice_date)}</span>
               <span>${escapeHtml(category)}</span>
               <span class="announcement-tag ${tag.neutral ? "neutral" : ""}">${tag.text}</span>
             </div>
