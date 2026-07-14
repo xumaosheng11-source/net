@@ -649,6 +649,27 @@
       line-height: 1.65;
     }
 
+    .feature-theme-tag {
+      display: inline-flex;
+      align-items: center;
+      min-height: 26px;
+      margin: 0 3px;
+      padding: 0 8px;
+      border: 1px solid #93c5fd;
+      border-radius: 999px;
+      background: #eff6ff;
+      color: #1d4ed8;
+      font-size: .78em;
+      font-weight: 900;
+      line-height: 1;
+      vertical-align: middle;
+    }
+
+    .feature-move {
+      color: #1d4ed8;
+      font-weight: 900;
+    }
+
     .stock-feature.up {
       border-color: #fecaca;
       background: linear-gradient(135deg, #fff4f4, #ffffff);
@@ -658,6 +679,10 @@
       background: #dc2626;
     }
 
+    .stock-feature.up .feature-move {
+      color: #b91c1c;
+    }
+
     .stock-feature.down {
       border-color: #bbf7d0;
       background: linear-gradient(135deg, #f0fdf4, #ffffff);
@@ -665,6 +690,10 @@
 
     .stock-feature.down::before {
       background: #16a34a;
+    }
+
+    .stock-feature.down .feature-move {
+      color: #15803d;
     }
 
     .book {
@@ -1555,6 +1584,11 @@
       { name: "ST华幸", secid: "1.600340", tencentCode: "s_sh600340", displayCode: "600340", market: "沪市主板", preferredName: "ST华幸" }
     ];
 
+    const defaultStockThemes = {
+      "000711": ["环境治理", "土壤修复", "小金属"],
+      "600340": ["房地产开发", "产业地产", "低空经济", "雄安新区"]
+    };
+
     const stockStorageKey = "xuFamilyWatchlistV1";
     const activeStockStorageKey = "xuFamilyActiveStockV1";
     const chartRanges = [
@@ -1629,6 +1663,9 @@
       historicalHigh: {},
       historicalHighInFlight: {},
       stockIndustries: {},
+      stockThemes: {},
+      stockThemesInFlight: {},
+      stockThemesUpdatedAt: {},
       priceFeatureHistory: {},
       priceFeatureHistoryInFlight: {},
       priceFeatureHistoryUpdatedAt: {},
@@ -2666,6 +2703,7 @@
       renderWatchlist();
       renderStockFeature();
       loadHistoricalHigh();
+      loadStockThemes();
       loadPriceFeatureHistory();
     }
 
@@ -2704,6 +2742,7 @@
       ]);
       el.orderBook.innerHTML = `<div class="stamp">备用行情源不提供五档挂单量，暂时无法判断买卖意愿。</div>`;
       renderStockFeature();
+      loadStockThemes();
       loadPriceFeatureHistory();
     }
 
@@ -3017,10 +3056,108 @@
       };
     }
 
-    function stockIndustry() {
-      const raw = String(state.stockIndustries[currentStock.displayCode] || "").trim();
-      if (raw) return raw.replace(/行业$/, "") || raw;
-      return currentStock.market || "A股";
+    function normalizeThemeLabel(value) {
+      const label = String(value || "").replace(/\s+/g, "").replace(/概念$/, "").replace(/行业$/, "").trim();
+      if (!label || label.length > 16) return "";
+      const excluded = [
+        /^(沪|深|京).*(A股|主板|创业板|科创板|北交所)/,
+        /^(A股|B股|ST股|\*ST股|风险警示|融资融券|沪股通|深股通|标准普尔|富时罗素|机构重仓|破增发价股|长期破净|低价股|最近多板|大盘)$/,
+        /板块$/,
+        /^(黑龙江|河北|北京|上海|广东|浙江|江苏|山东|福建|四川|重庆|新疆|西藏)$/
+      ];
+      return excluded.some(rule => rule.test(label)) ? "" : label;
+    }
+
+    function stockThemeLabels() {
+      const code = currentStock.displayCode;
+      const remote = Array.isArray(state.stockThemes[code]) ? state.stockThemes[code] : [];
+      const fallback = defaultStockThemes[code] || [];
+      const industry = String(state.stockIndustries[code] || "").trim();
+      const labels = remote.length ? remote : fallback.length ? fallback : industry ? [industry] : [];
+      return [...new Set(labels.map(normalizeThemeLabel).filter(Boolean))].slice(0, 4);
+    }
+
+    function stockF10Code() {
+      if (/^[48]/.test(currentStock.displayCode)) return "BJ" + currentStock.displayCode;
+      return currentStock.secid.startsWith("1.") ? "SH" + currentStock.displayCode : "SZ" + currentStock.displayCode;
+    }
+
+    function addThemeLabel(target, value) {
+      String(value || "").split(/[、,，;；\s]+/).forEach(part => {
+        const label = normalizeThemeLabel(part);
+        if (label && !target.includes(label)) target.push(label);
+      });
+    }
+
+    function extractStockThemes(payload) {
+      const labels = [];
+      const themeKey = /(board|plate|concept|theme|sector|bk|ssbk|ssgn|所属板块|概念|题材)/i;
+      const titleKey = /^(title|name|type|类型|标题)$/i;
+      const contentKey = /^(content|value|text|desc|description|内容|数据)$/i;
+      const nameKey = /^(board_name|boardname|concept_name|conceptname|plate_name|platename|name|名称)$/i;
+
+      function visit(value, inThemeContext = false, depth = 0) {
+        if (depth > 7 || value === null || value === undefined) return;
+        if (typeof value === "string") {
+          return;
+        }
+        if (Array.isArray(value)) {
+          value.forEach(item => visit(item, inThemeContext, depth + 1));
+          return;
+        }
+        if (typeof value !== "object") return;
+
+        const title = Object.entries(value).find(([key]) => titleKey.test(key));
+        const content = Object.entries(value).find(([key]) => contentKey.test(key));
+        const titleSignalsTheme = title && /(所属板块|概念|题材|行业)/.test(String(title[1] || ""));
+        if (titleSignalsTheme && content) addThemeLabel(labels, content[1]);
+
+        Object.entries(value).forEach(([key, child]) => {
+          const nextContext = inThemeContext || themeKey.test(key) || titleSignalsTheme;
+          if (nextContext && nameKey.test(key) && typeof child === "string") {
+            addThemeLabel(labels, child);
+            return;
+          }
+          if (themeKey.test(key) && typeof child === "string") {
+            addThemeLabel(labels, child);
+            return;
+          }
+          visit(child, nextContext, depth + 1);
+        });
+      }
+
+      visit(payload);
+      return labels.slice(0, 8);
+    }
+
+    async function loadStockThemes() {
+      const code = currentStock.displayCode;
+      const isFresh = Date.now() - (state.stockThemesUpdatedAt[code] || 0) < 6 * 60 * 60 * 1000;
+      if ((state.stockThemes[code] !== undefined && isFresh) || state.stockThemesInFlight[code]) {
+        if (currentStock.displayCode === code) renderStockFeature();
+        return;
+      }
+
+      state.stockThemesInFlight[code] = true;
+      const url = "https://emweb.securities.eastmoney.com/PC_HSF10/CoreConception/PageAjax?code=" + stockF10Code();
+      try {
+        let payload;
+        try {
+          const response = await fetch(url + "&_=" + Date.now(), { cache: "no-store" });
+          if (!response.ok) throw new Error("核心题材请求失败");
+          payload = await response.json();
+        } catch (fetchError) {
+          payload = await jsonp(url, "StockThemes", 9000, "callback");
+        }
+        const themes = extractStockThemes(payload);
+        if (themes.length) state.stockThemes[code] = themes;
+      } catch (error) {
+        if (state.stockThemes[code] === undefined) state.stockThemes[code] = [];
+      } finally {
+        state.stockThemesUpdatedAt[code] = Date.now();
+        state.stockThemesInFlight[code] = false;
+        if (currentStock.displayCode === code) renderStockFeature();
+      }
     }
 
     function featureLatestPrice(points) {
@@ -3065,16 +3202,17 @@
     }
 
     function featureSummary(points) {
-      const industry = stockIndustry();
+      const themes = stockThemeLabels();
       if (!Array.isArray(points) || points.length < 6) {
-        return { text: "该股属于" + industry + "领域，正在整理近期股价走势。", tone: "flat" };
+        return { themes, narrative: "正在整理近期股价走势。", tone: "flat" };
       }
 
       const limitStreak = featureLimitStreak(points);
       if (limitStreak.count >= 2) {
         const action = limitStreak.direction > 0 ? "涨停" : "跌停";
         return {
-          text: "该股属于" + industry + "领域，近期连续" + limitStreak.count + "个交易日" + action + "，短线波动显著。",
+          themes,
+          narrative: "近期连续" + limitStreak.count + "个交易日" + action + "，短线波动显著。",
           tone: limitStreak.direction > 0 ? "up" : "down"
         };
       }
@@ -3086,13 +3224,15 @@
 
       if (year !== null && year >= 100) {
         return {
-          text: "该股属于" + industry + "领域，近一年累计上涨" + featurePctText(year) + "，股价已较一年前翻倍。",
+          themes,
+          narrative: "近一年累计上涨" + featurePctText(year) + "，股价已较一年前翻倍。",
           tone: "up"
         };
       }
       if (year !== null && year <= -50) {
         return {
-          text: "该股属于" + industry + "领域，近一年累计下跌" + featurePctText(year) + "，股价较一年前已跌去过半。",
+          themes,
+          narrative: "近一年累计下跌" + featurePctText(year) + "，股价较一年前已跌去过半。",
           tone: "down"
         };
       }
@@ -3105,7 +3245,7 @@
       ].filter(item => item.value !== null);
 
       if (!movements.length) {
-        return { text: "该股属于" + industry + "领域，近期股价走势数据仍在补充。", tone: "flat" };
+        return { themes, narrative: "近期股价走势数据仍在补充。", tone: "flat" };
       }
 
       const dominant = movements.sort((left, right) => Math.abs(right.value) / right.normal - Math.abs(left.value) / left.normal)[0];
@@ -3117,7 +3257,8 @@
       else if (magnitude >= 1.5) ending = dominant.value > 0 ? "短线略占优势。" : "短线略偏弱。";
 
       return {
-        text: "该股属于" + industry + "领域，" + dominant.label + "累计" + direction + featurePctText(dominant.value) + "，" + ending,
+        themes,
+        narrative: dominant.label + "累计" + direction + featurePctText(dominant.value) + "，" + ending,
         tone: trendClass(dominant.value)
       };
     }
@@ -3126,7 +3267,9 @@
       const points = state.priceFeatureHistory[currentStock.displayCode];
       const summary = featureSummary(points);
       el.stockFeature.className = "stock-feature " + summary.tone;
-      el.stockFeature.innerHTML = "<p>" + escapeHtml(summary.text) + "</p>";
+      const labels = summary.themes.map(label => `<span class="feature-theme-tag">${escapeHtml(label)}</span>`).join("");
+      const intro = labels ? "该股涉及" + labels + "等领域，" : "该股所属领域正在读取，";
+      el.stockFeature.innerHTML = "<p>" + intro + "<span class=\"feature-move\">" + escapeHtml(summary.narrative) + "</span></p>";
     }
 
     async function loadPriceFeatureHistory() {
