@@ -1827,9 +1827,6 @@
       el.codeLabel.textContent = "证券代码 " + currentStock.displayCode;
       el.pageTitle.textContent = displayName + " 实时行情";
       el.announcementTitle.textContent = displayName + "最新公告";
-      if (!state.searchEditing && document.activeElement !== el.stockSearchInput) {
-        el.stockSearchInput.value = currentStock.displayCode;
-      }
       document.title = "徐家私人看盘系统";
       renderWatchlist();
     }
