@@ -3,16 +3,16 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>徐家专属看盘系统｜ST京蓝实时看盘</title>
-  <meta name="description" content="ST京蓝实时行情、分时走势、主力资金、公告和散户评论，一页查看。">
+  <title>徐家专属看盘系统｜自选股实时看盘</title>
+  <meta name="description" content="自选股实时行情、分时走势、主力资金、公告和散户评论，一页查看。">
   <meta property="og:type" content="website">
   <meta property="og:title" content="徐家专属看盘系统">
-  <meta property="og:description" content="点击查看 ST京蓝实时行情、资金流、公告和散户评论。">
+  <meta property="og:description" content="点击查看自选股实时行情、资金流、公告和散户评论。">
   <meta property="og:url" content="https://xumaosheng11-source.github.io/net/">
   <meta property="og:image" content="https://xumaosheng11-source.github.io/net/share-card.png">
   <meta name="twitter:card" content="summary_large_image">
   <meta name="twitter:title" content="徐家专属看盘系统">
-  <meta name="twitter:description" content="点击查看 ST京蓝实时行情、资金流、公告和散户评论。">
+  <meta name="twitter:description" content="点击查看自选股实时行情、资金流、公告和散户评论。">
   <meta name="twitter:image" content="https://xumaosheng11-source.github.io/net/share-card.png">
   <style>
     :root {
@@ -51,6 +51,111 @@
       width: min(1280px, calc(100% - 32px));
       margin: 0 auto;
       padding: 24px 0 32px;
+    }
+
+    .stock-switcher {
+      margin-bottom: 14px;
+      padding: 14px;
+      border: 1px solid rgba(147, 197, 253, .9);
+      border-radius: 8px;
+      background: rgba(255, 255, 255, .92);
+      box-shadow: 0 14px 36px rgba(37, 99, 235, .12);
+      display: grid;
+      gap: 12px;
+    }
+
+    .search-form {
+      display: grid;
+      grid-template-columns: minmax(180px, 1fr) auto auto;
+      gap: 10px;
+      align-items: center;
+    }
+
+    .search-field {
+      min-height: 42px;
+      width: 100%;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 0 12px;
+      color: var(--ink);
+      background: #f8fafc;
+      font: inherit;
+      font-weight: 700;
+      outline: none;
+    }
+
+    .search-field:focus {
+      border-color: #2563eb;
+      box-shadow: 0 0 0 3px rgba(37, 99, 235, .14);
+      background: #ffffff;
+    }
+
+    .search-button {
+      min-height: 42px;
+      background: #2563eb;
+      border-color: #2563eb;
+      color: #ffffff;
+    }
+
+    .watch-action {
+      min-height: 42px;
+      background: #ffffff;
+      color: #1d4ed8;
+      border-color: #bfdbfe;
+    }
+
+    .watch-action.remove {
+      color: #475467;
+      border-color: var(--line);
+      background: #f8fafc;
+    }
+
+    .watchlist-area {
+      display: grid;
+      gap: 7px;
+    }
+
+    .watchlist-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.45;
+    }
+
+    .watchlist {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+
+    .watch-chip {
+      min-height: 40px;
+      padding: 0 13px;
+      border-radius: 999px;
+      border: 1px solid #bfdbfe;
+      background: #eff6ff;
+      color: #1d4ed8;
+      box-shadow: none;
+      display: inline-flex;
+      gap: 7px;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .watch-chip.active {
+      background: #111827;
+      border-color: #111827;
+      color: #ffffff;
+    }
+
+    .watch-chip small {
+      color: currentColor;
+      opacity: .72;
+      font-weight: 800;
     }
 
     .topbar {
@@ -1078,6 +1183,29 @@
         margin-bottom: 12px;
       }
 
+      .stock-switcher {
+        padding: 12px;
+      }
+
+      .search-form {
+        grid-template-columns: 1fr;
+      }
+
+      .search-button,
+      .watch-action {
+        width: 100%;
+      }
+
+      .watchlist {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+
+      .watch-chip {
+        width: 100%;
+        border-radius: 8px;
+      }
+
       .service-greeting {
         width: 100%;
       }
@@ -1165,6 +1293,21 @@
 </head>
 <body>
   <main class="shell">
+    <section class="stock-switcher" aria-label="股票搜索和自选股">
+      <form id="stockSearchForm" class="search-form">
+        <input id="stockSearchInput" class="search-field" type="search" autocomplete="off" placeholder="输入股票代码或中文名，如 000711、京蓝">
+        <button class="search-button" type="submit">搜索股票</button>
+        <button id="watchAction" class="watch-action" type="button">加入自选</button>
+      </form>
+      <div class="watchlist-area">
+        <div class="watchlist-head">
+          <strong>自选股</strong>
+          <span id="watchlistStatus">点击下方股票即可切换。</span>
+        </div>
+        <div id="watchlist" class="watchlist"></div>
+      </div>
+    </section>
+
     <header class="topbar">
       <div class="identity">
         <div class="service-greeting">
@@ -1176,10 +1319,10 @@
         <div class="label-row">
           <span id="todayDate">今日日期：--</span>
           <span class="badge">A股</span>
-          <span class="badge">深市主板</span>
-          <span>证券代码 000711</span>
+          <span id="marketBadge" class="badge">深市主板</span>
+          <span id="codeLabel">证券代码 000711</span>
         </div>
-        <h1>ST京蓝 实时行情</h1>
+        <h1 id="pageTitle">ST京蓝 实时行情</h1>
       </div>
       <div class="controls" aria-label="行情刷新控制">
         <button class="refresh-option active" type="button" data-refresh="3000" aria-pressed="true">3秒刷新</button>
@@ -1239,7 +1382,7 @@
 
     <section class="section-grid">
       <div class="panel">
-        <h2>ST京蓝最新公告</h2>
+        <h2 id="announcementTitle">ST京蓝最新公告</h2>
         <div id="announcements" class="announcements">
           <div class="announcement-card">
             <div class="announcement-meta">正在读取公告...</div>
@@ -1277,11 +1420,14 @@
   </div>
 
   <script>
-    const stock = {
-      secid: "0.000711",
-      tencentCode: "s_sz000711",
-      displayCode: "000711"
-    };
+    const defaultWatchlist = [
+      { name: "ST京蓝", secid: "0.000711", tencentCode: "s_sz000711", displayCode: "000711", market: "深市主板", preferredName: "ST京蓝" },
+      { name: "ST华幸", secid: "1.600340", tencentCode: "s_sh600340", displayCode: "600340", market: "沪市主板", preferredName: "ST华幸" }
+    ];
+
+    const stockStorageKey = "xuFamilyWatchlistV1";
+    const activeStockStorageKey = "xuFamilyActiveStockV1";
+    let currentStock = { ...defaultWatchlist[0] };
 
     const fallbackAnnouncements = [
       {
@@ -1296,10 +1442,18 @@
     ];
 
     const el = {
+      stockSearchForm: document.getElementById("stockSearchForm"),
+      stockSearchInput: document.getElementById("stockSearchInput"),
+      watchAction: document.getElementById("watchAction"),
+      watchlist: document.getElementById("watchlist"),
+      watchlistStatus: document.getElementById("watchlistStatus"),
       price: document.getElementById("price"),
       delta: document.getElementById("delta"),
       stamp: document.getElementById("stamp"),
       todayDate: document.getElementById("todayDate"),
+      marketBadge: document.getElementById("marketBadge"),
+      codeLabel: document.getElementById("codeLabel"),
+      pageTitle: document.getElementById("pageTitle"),
       metrics: document.getElementById("metrics"),
       orderBook: document.getElementById("orderBook"),
       fundFlow: document.getElementById("fundFlow"),
@@ -1308,6 +1462,7 @@
       stateNote: document.getElementById("stateNote"),
       refreshButtons: document.querySelectorAll(".refresh-option"),
       trendChart: document.getElementById("trendChart"),
+      announcementTitle: document.getElementById("announcementTitle"),
       announcements: document.getElementById("announcements"),
       discussions: document.getElementById("discussions"),
       reader: document.getElementById("announcementReader"),
@@ -1329,7 +1484,9 @@
       refreshInterval: 3000,
       announcements: [],
       latestQuote: null,
-      latestFundFlow: null
+      latestFundFlow: null,
+      watchlist: [],
+      searchEditing: false
     };
 
     function numberValue(value) {
@@ -1429,6 +1586,270 @@
       el.toast.classList.remove("show");
     }
 
+    function stockDisplayName(stockItem) {
+      return stockItem.preferredName || stockItem.name || stockItem.displayCode;
+    }
+
+    function normalizeStock(stockItem) {
+      if (!stockItem || !stockItem.displayCode) return null;
+      const code = String(stockItem.displayCode).replace(/\D/g, "").padStart(6, "0").slice(-6);
+      const inferred = buildStockFromCode(code, stockItem.name || stockItem.preferredName || code);
+      return {
+        ...inferred,
+        ...stockItem,
+        displayCode: code,
+        secid: stockItem.secid || inferred.secid,
+        tencentCode: stockItem.tencentCode || inferred.tencentCode,
+        market: stockItem.market || inferred.market,
+        name: stockItem.name || stockItem.preferredName || code
+      };
+    }
+
+    function buildStockFromCode(code, name = "") {
+      const clean = String(code || "").replace(/\D/g, "");
+      if (!/^\d{6}$/.test(clean)) return null;
+      const isShanghai = /^(5|6|9)/.test(clean);
+      const marketPrefix = isShanghai ? "1" : "0";
+      const tencentPrefix = isShanghai ? "s_sh" : "s_sz";
+      const market = isShanghai ? "沪市" : "深市";
+      return {
+        name: name || clean,
+        secid: marketPrefix + "." + clean,
+        tencentCode: tencentPrefix + clean,
+        displayCode: clean,
+        market
+      };
+    }
+
+    function normalizeSearchText(value) {
+      return String(value || "").trim().replace(/\s+/g, "").toUpperCase();
+    }
+
+    function localStockMatch(query) {
+      const keyword = normalizeSearchText(query);
+      if (!keyword) return null;
+      return state.watchlist.find(item => {
+        const names = [
+          item.displayCode,
+          item.name,
+          item.preferredName,
+          stockDisplayName(item)
+        ].map(normalizeSearchText).filter(Boolean);
+        return names.some(name => name === keyword || name.includes(keyword) || keyword.includes(name));
+      }) || null;
+    }
+
+    function stockFromSearchItem(item) {
+      if (!item || typeof item !== "object") return null;
+      const code = String(item.Code || item.SecurityCode || item.SECURITY_CODE || item.code || item.stockCode || "").replace(/\D/g, "");
+      if (!/^\d{6}$/.test(code)) return null;
+
+      const quoteId = String(item.QuoteID || item.QuoteId || item.quoteId || item.Quoteid || "");
+      const secid = /^[01]\.\d{6}$/.test(quoteId) ? quoteId : buildStockFromCode(code).secid;
+      const marketPrefix = secid.startsWith("1.") ? "1" : "0";
+      const tencentCode = (marketPrefix === "1" ? "s_sh" : "s_sz") + code;
+      const name = item.Name || item.SecurityName || item.SECURITY_NAME_ABBR || item.name || code;
+      const typeText = String(item.SecurityTypeName || item.TypeName || item.typeName || item.MarketType || "");
+      if (typeText && !/(A股|股票|沪|深|主板|创业|科创)/.test(typeText)) return null;
+
+      return {
+        name,
+        secid,
+        tencentCode,
+        displayCode: code,
+        market: marketPrefix === "1" ? "沪市" : "深市"
+      };
+    }
+
+    function searchPayloadItems(payload) {
+      const roots = [
+        payload && payload.QuotationCodeTable && payload.QuotationCodeTable.Data,
+        payload && payload.Data,
+        payload && payload.data,
+        payload && payload.result,
+        payload
+      ];
+      const items = [];
+      const seen = new Set();
+
+      function visit(value, depth = 0) {
+        if (!value || depth > 4) return;
+        if (Array.isArray(value)) {
+          value.forEach(item => visit(item, depth + 1));
+          return;
+        }
+        if (typeof value !== "object") return;
+        const candidate = stockFromSearchItem(value);
+        if (candidate && !seen.has(candidate.displayCode)) {
+          seen.add(candidate.displayCode);
+          items.push(candidate);
+        }
+        Object.keys(value).forEach(key => {
+          if (["Data", "data", "list", "result", "QuotationCodeTable"].includes(key)) {
+            visit(value[key], depth + 1);
+          }
+        });
+      }
+
+      roots.forEach(root => visit(root));
+      return items;
+    }
+
+    async function resolveStockSearch(query) {
+      const local = localStockMatch(query);
+      if (local) return local;
+
+      const direct = buildStockFromCode(query);
+      if (direct) {
+        const known = state.watchlist.find(item => item.displayCode === direct.displayCode);
+        return known || direct;
+      }
+
+      const keyword = String(query || "").trim();
+      if (!keyword) return null;
+
+      el.watchlistStatus.textContent = "正在搜索股票...";
+      const url = "https://searchapi.eastmoney.com/api/suggest/get?input=" + encodeURIComponent(keyword) + "&type=14&token=D43BF722C8E33BD0A1D7D6DA1D3CB1&count=8";
+      const payload = await jsonp(url, "StockSuggest", 8000, "cb");
+      const items = searchPayloadItems(payload);
+      const matched = items.find(item => {
+        const name = normalizeSearchText(item.name);
+        const key = normalizeSearchText(keyword);
+        return item.displayCode === key || name.includes(key) || key.includes(name);
+      }) || items[0];
+      return matched || null;
+    }
+
+    function mergeWatchlist(items) {
+      const map = new Map();
+      [...defaultWatchlist, ...items].forEach(item => {
+        const normalized = normalizeStock(item);
+        if (normalized) map.set(normalized.displayCode, normalized);
+      });
+      return Array.from(map.values());
+    }
+
+    function loadWatchlist() {
+      try {
+        const saved = JSON.parse(localStorage.getItem(stockStorageKey) || "[]");
+        state.watchlist = mergeWatchlist(Array.isArray(saved) ? saved : []);
+      } catch (error) {
+        state.watchlist = mergeWatchlist([]);
+      }
+
+      const savedActive = localStorage.getItem(activeStockStorageKey);
+      const active = state.watchlist.find(item => item.displayCode === savedActive);
+      currentStock = active ? { ...active } : { ...state.watchlist[0] };
+    }
+
+    function saveWatchlist() {
+      const custom = state.watchlist.filter(item => !defaultWatchlist.some(base => base.displayCode === item.displayCode));
+      try {
+        localStorage.setItem(stockStorageKey, JSON.stringify(custom));
+        localStorage.setItem(activeStockStorageKey, currentStock.displayCode);
+      } catch (error) {
+        el.watchlistStatus.textContent = "当前浏览器限制保存，自选股本次打开有效。";
+      }
+    }
+
+    function isWatched(code = currentStock.displayCode) {
+      return state.watchlist.some(item => item.displayCode === code);
+    }
+
+    function updateWatchAction() {
+      const watched = isWatched();
+      const isDefault = defaultWatchlist.some(item => item.displayCode === currentStock.displayCode);
+      el.watchAction.textContent = watched ? (isDefault ? "默认自选" : "移出自选") : "加入自选";
+      el.watchAction.disabled = isDefault;
+      el.watchAction.classList.toggle("remove", watched && !isDefault);
+    }
+
+    function renderWatchlist() {
+      el.watchlist.innerHTML = state.watchlist.map(item => {
+        const active = item.displayCode === currentStock.displayCode;
+        return `
+          <button class="watch-chip ${active ? "active" : ""}" type="button" data-code="${item.displayCode}" aria-pressed="${active ? "true" : "false"}">
+            <span>${escapeHtml(stockDisplayName(item))}</span>
+            <small>${escapeHtml(item.displayCode)}</small>
+          </button>
+        `;
+      }).join("");
+      el.watchlistStatus.textContent = isWatched() ? "当前股票已在自选股中。" : "当前股票还未加入自选。";
+      updateWatchAction();
+    }
+
+    function updateStockHeading(name) {
+      const displayName = name || stockDisplayName(currentStock);
+      currentStock.name = displayName;
+      el.marketBadge.textContent = currentStock.market || "A股";
+      el.codeLabel.textContent = "证券代码 " + currentStock.displayCode;
+      el.pageTitle.textContent = displayName + " 实时行情";
+      el.announcementTitle.textContent = displayName + "最新公告";
+      if (!state.searchEditing && document.activeElement !== el.stockSearchInput) {
+        el.stockSearchInput.value = currentStock.displayCode;
+      }
+      document.title = displayName + " " + currentStock.displayCode + " 实时行情看板";
+      renderWatchlist();
+    }
+
+    function resetStockPanels() {
+      state.announcements = [];
+      state.latestQuote = null;
+      state.latestFundFlow = null;
+      delete el.fundFlow.dataset.ready;
+      el.price.textContent = "--";
+      el.price.className = "price flat";
+      el.delta.className = "delta flat";
+      el.delta.innerHTML = "<span>--</span><span>--</span>";
+      el.stamp.textContent = "等待行情源返回...";
+      el.marketState.textContent = "--";
+      el.stateNote.textContent = "按行情时间和A股交易时段自动判断。";
+      renderMetricsFromEastmoney({});
+      renderOrderBookFromEastmoney({});
+      renderFundFlowEmpty();
+      renderChartMessage("等待分时走势...");
+      renderAnnouncementMessage("正在读取公告...");
+      renderDiscussionMessage("正在读取热门讨论...");
+    }
+
+    function switchStock(stockItem, options = {}) {
+      const normalized = normalizeStock(stockItem);
+      if (!normalized) {
+        showToast("请输入 6 位股票代码。");
+        return;
+      }
+      currentStock = { ...normalized };
+      state.inFlight = false;
+      state.announcementInFlight = false;
+      state.discussionInFlight = false;
+      state.searchEditing = false;
+      saveWatchlist();
+      updateStockHeading(options.name || stockDisplayName(currentStock));
+      resetStockPanels();
+      loadAnnouncements();
+      loadDiscussions();
+      loadQuote();
+      resetTimer();
+    }
+
+    function toggleCurrentWatch() {
+      const defaultItem = defaultWatchlist.find(item => item.displayCode === currentStock.displayCode);
+      if (defaultItem) return;
+
+      if (isWatched()) {
+        state.watchlist = mergeWatchlist(state.watchlist.filter(item => item.displayCode !== currentStock.displayCode));
+        currentStock = { ...defaultWatchlist[0] };
+        saveWatchlist();
+        switchStock(currentStock);
+        return;
+      }
+
+      state.watchlist = mergeWatchlist([...state.watchlist, currentStock]);
+      saveWatchlist();
+      renderWatchlist();
+      showToast("已加入自选股。");
+    }
+
     function chartShell(content, extra = "") {
       el.trendChart.innerHTML = `
         <div class="chart-head">
@@ -1479,7 +1900,7 @@
       const midY = (height / 2).toFixed(1);
 
       chartShell(`
-        <svg viewBox="0 0 ${width} ${height}" role="img" aria-label="ST京蓝分时价格曲线和均价线">
+        <svg viewBox="0 0 ${width} ${height}" role="img" aria-label="${escapeHtml(stockDisplayName(currentStock))}分时价格曲线和均价线">
           <line x1="${pad}" y1="${pad}" x2="${pad}" y2="${height - pad}" stroke="#d8e0e9" />
           <line x1="${pad}" y1="${height - pad}" x2="${width - pad}" y2="${height - pad}" stroke="#d8e0e9" />
           <line x1="${pad}" y1="${midY}" x2="${width - pad}" y2="${midY}" stroke="#e5e7eb" stroke-dasharray="5 6" />
@@ -1857,9 +2278,14 @@
       const cls = trendClass(change);
       const stamp = formatEastmoneyTime(data.f86);
       const [marketState, stateNote] = inferMarketState(stamp.date, stamp.time);
-      const name = data.f58 || "ST京蓝";
+      const quotedName = data.f58 || stockDisplayName(currentStock);
+      const name = currentStock.preferredName || quotedName;
+      currentStock.name = name;
+      const savedStock = state.watchlist.find(item => item.displayCode === currentStock.displayCode);
+      if (savedStock && !savedStock.preferredName) savedStock.name = quotedName;
+      updateStockHeading(name);
 
-      document.title = name + " " + stock.displayCode + " 实时行情看板";
+      document.title = name + " " + currentStock.displayCode + " 实时行情看板";
       el.price.textContent = priceText(current);
       el.price.className = "price " + cls;
       el.delta.className = "delta " + cls;
@@ -1873,14 +2299,17 @@
 
     function renderTencent(raw) {
       const fields = raw.split(",");
-      const name = fields[0] || "ST京蓝";
+      const quotedName = fields[0] || stockDisplayName(currentStock);
+      const name = currentStock.preferredName || quotedName;
       const current = numberValue(fields[1]);
       const change = numberValue(fields[2]);
       const changePct = numberValue(fields[3]);
       const cls = trendClass(change);
 
       state.latestQuote = null;
-      document.title = name + " " + stock.displayCode + " 实时行情看板";
+      currentStock.name = name;
+      updateStockHeading(name);
+      document.title = name + " " + currentStock.displayCode + " 实时行情看板";
       el.price.textContent = priceText(current);
       el.price.className = "price " + cls;
       el.delta.className = "delta " + cls;
@@ -1896,7 +2325,7 @@
         ["涨跌幅", pctText(changePct)],
         ["成交量", lotsText(fields[4])],
         ["成交额", amountText((numberValue(fields[5]) || 0) * 10000)],
-        ["证券代码", stock.displayCode],
+        ["证券代码", currentStock.displayCode],
         ["数据模式", "备用简版"],
         ["刷新状态", "成功"]
       ]);
@@ -1911,7 +2340,7 @@
     function jsonp(url, prefix, timeoutMs = 8000, callbackParam = "cb") {
       state.requestId += 1;
       const id = prefix + state.requestId;
-      const callbackName = "__stJinglan" + prefix + state.requestId;
+      const callbackName = "__xuStock" + prefix + state.requestId;
       const separator = url.includes("?") ? "&" : "?";
 
       return new Promise((resolve, reject) => {
@@ -1995,7 +2424,7 @@
       const noteCard = note ? `
         <div class="announcement-card">
           <div class="announcement-meta">${escapeHtml(note)}</div>
-          <a class="quick-link" href="https://data.eastmoney.com/notices/stock/000711.html" target="_blank" rel="noreferrer">
+          <a class="quick-link" href="https://data.eastmoney.com/notices/stock/${currentStock.displayCode}.html" target="_blank" rel="noreferrer">
             <strong>打开公告汇总</strong>
             <span>接口恢复前，可在这里查看官方公告</span>
           </a>
@@ -2010,7 +2439,8 @@
     }
 
     async function fetchAnnouncementsOnce() {
-      const listUrl = "https://np-anotice-stock.eastmoney.com/api/security/ann?sr=-1&page_size=5&page_index=1&ann_type=A&client_source=web&stock_list=000711";
+      const code = currentStock.displayCode;
+      const listUrl = "https://np-anotice-stock.eastmoney.com/api/security/ann?sr=-1&page_size=5&page_index=1&ann_type=A&client_source=web&stock_list=" + code;
       const payload = await jsonp(listUrl, "AnnouncementList", 8000);
       const list = payload && payload.data && Array.isArray(payload.data.list) ? payload.data.list : [];
       return Promise.all(list.map(async item => {
@@ -2020,14 +2450,14 @@
           const data = detail && detail.data ? detail.data : {};
           return {
             ...item,
-            detailUrl: "https://data.eastmoney.com/notices/detail/000711/" + item.art_code + ".html",
+            detailUrl: "https://data.eastmoney.com/notices/detail/" + code + "/" + item.art_code + ".html",
             pdfUrl: data.attach_url_web || data.attach_url,
             content: data.notice_content || data.content || data.ann_content || ""
           };
         } catch (error) {
           return {
             ...item,
-            detailUrl: "https://data.eastmoney.com/notices/detail/000711/" + item.art_code + ".html"
+            detailUrl: "https://data.eastmoney.com/notices/detail/" + code + "/" + item.art_code + ".html"
           };
         }
       }));
@@ -2035,6 +2465,7 @@
 
     async function loadAnnouncements() {
       if (state.announcementInFlight) return;
+      const requestCode = currentStock.displayCode;
       state.announcementInFlight = true;
       try {
         const maxAttempts = 3;
@@ -2042,6 +2473,7 @@
           try {
             renderAnnouncementMessage(attempt === 1 ? "正在读取公告..." : "公告读取失败，正在自动重试 " + attempt + "/" + maxAttempts + "...");
             const details = await fetchAnnouncementsOnce();
+            if (requestCode !== currentStock.displayCode) return;
             state.announcements = details;
             renderAnnouncements(details);
             return;
@@ -2051,8 +2483,22 @@
           }
         }
       } catch (error) {
-        state.announcements = fallbackAnnouncements;
-        renderAnnouncements(fallbackAnnouncements, "微信稳定兜底：实时公告接口暂时不可用，下面先显示页面内置最近公告。接口恢复后会自动更新。");
+        if (requestCode !== currentStock.displayCode) return;
+        if (currentStock.displayCode === "000711") {
+          state.announcements = fallbackAnnouncements;
+          renderAnnouncements(fallbackAnnouncements, "微信稳定兜底：实时公告接口暂时不可用，下面先显示页面内置最近公告。接口恢复后会自动更新。");
+        } else {
+          state.announcements = [];
+          el.announcements.innerHTML = `
+            <div class="announcement-card">
+              <div class="announcement-meta">公告读取失败，稍后会自动重试。</div>
+              <a class="quick-link" href="https://data.eastmoney.com/notices/stock/${currentStock.displayCode}.html" target="_blank" rel="noreferrer">
+                <strong>打开公告汇总</strong>
+                <span>查看 ${escapeHtml(stockDisplayName(currentStock))} 官方公告</span>
+              </a>
+            </div>
+          `;
+        }
       } finally {
         state.announcementInFlight = false;
       }
@@ -2062,7 +2508,7 @@
       const item = state.announcements.find(entry => String(entry.art_code) === String(artCode));
       if (!item) return;
       const title = item.title || "公告阅读";
-      const detailUrl = item.detailUrl || ("https://data.eastmoney.com/notices/detail/000711/" + item.art_code + ".html");
+      const detailUrl = item.detailUrl || ("https://data.eastmoney.com/notices/detail/" + currentStock.displayCode + "/" + item.art_code + ".html");
       const pdfUrl = item.pdfUrl || detailUrl;
       el.readerTitle.textContent = title;
       el.readerMeta.textContent = shortDate(item.notice_date) + " · " + announcementCategory(item);
@@ -2087,12 +2533,13 @@
     }
 
     function renderDiscussionMessage(message) {
+      const name = stockDisplayName(currentStock);
       el.discussions.innerHTML = `
         <div class="discussion-card">
           ${message ? `<div class="discussion-meta">${message}</div>` : ""}
-          <a class="quick-link" href="https://guba.eastmoney.com/list,000711.html" target="_blank" rel="noreferrer">
+          <a class="quick-link" href="https://guba.eastmoney.com/list,${currentStock.displayCode}.html" target="_blank" rel="noreferrer">
             <strong>点击查看散户评论</strong>
-            <span>打开 ST京蓝 散户讨论区</span>
+            <span>打开 ${escapeHtml(name)} 散户讨论区</span>
           </a>
         </div>
       `;
@@ -2109,8 +2556,8 @@
 
     function discussionUrl(post) {
       const id = post.post_id || post.postid || post.id;
-      if (id) return "https://guba.eastmoney.com/news,000711," + id + ".html";
-      return "https://guba.eastmoney.com/list,000711.html";
+      if (id) return "https://guba.eastmoney.com/news," + currentStock.displayCode + "," + id + ".html";
+      return "https://guba.eastmoney.com/list," + currentStock.displayCode + ".html";
     }
 
     function renderDiscussions(posts) {
@@ -2145,18 +2592,22 @@
 
     async function loadDiscussions() {
       if (state.discussionInFlight) return;
+      const requestCode = currentStock.displayCode;
       state.discussionInFlight = true;
       try {
-        const hotUrl = "https://gbapi.eastmoney.com/webarticlelist/api/Article/Articlelist?code=000711&sorttype=1&page=1&ps=5&plat=wap&version=300&product=guba";
+        const hotUrl = "https://gbapi.eastmoney.com/webarticlelist/api/Article/Articlelist?code=" + currentStock.displayCode + "&sorttype=1&page=1&ps=5&plat=wap&version=300&product=guba";
         const payload = await jsonp(hotUrl, "DiscussionHot", 8000, "callback");
+        if (requestCode !== currentStock.displayCode) return;
         const posts = discussionPosts(payload);
         renderDiscussions(posts);
       } catch (error) {
         try {
-          const latestUrl = "https://gbapi.eastmoney.com/webarticlelist/api/Article/Articlelist?code=000711&sorttype=0&page=1&ps=5&plat=wap&version=300&product=guba";
+          const latestUrl = "https://gbapi.eastmoney.com/webarticlelist/api/Article/Articlelist?code=" + currentStock.displayCode + "&sorttype=0&page=1&ps=5&plat=wap&version=300&product=guba";
           const payload = await jsonp(latestUrl, "DiscussionLatest", 8000, "callback");
+          if (requestCode !== currentStock.displayCode) return;
           renderDiscussions(discussionPosts(payload));
         } catch (fallbackError) {
+          if (requestCode !== currentStock.displayCode) return;
           renderDiscussionMessage("散户评论读取失败，可能是股吧接口限制。");
         }
       } finally {
@@ -2180,7 +2631,8 @@
     function loadEastmoneyTrend() {
       state.requestId += 1;
       const requestId = state.requestId;
-      const callbackName = "__stJinglanTrend" + requestId;
+      const callbackName = "__xuStockTrend" + requestId;
+      const requestSecid = currentStock.secid;
       const fields1 = "f1,f2,f3,f4,f5,f6,f7,f8,f9,f10,f11";
       const fields2 = "f51,f52,f53,f54,f55,f56,f57,f58";
 
@@ -2202,6 +2654,11 @@
 
         window[callbackName] = payload => {
           try {
+            if (requestSecid !== currentStock.secid) {
+              cleanup();
+              resolve();
+              return;
+            }
             const trends = payload && payload.data && payload.data.trends;
             if (!Array.isArray(trends) || trends.length < 2) {
               throw new Error("分时走势返回为空");
@@ -2216,7 +2673,7 @@
         };
 
         script.id = "eastmoneyTrendScript";
-        script.src = "https://push2his.eastmoney.com/api/qt/stock/trends2/get?cb=" + callbackName + "&secid=" + stock.secid + "&ndays=1&iscr=0&iscca=0&ut=fa5fd1943c7b386f172d6893dbfba10b&fields1=" + fields1 + "&fields2=" + fields2 + "&_=" + Date.now();
+        script.src = "https://push2his.eastmoney.com/api/qt/stock/trends2/get?cb=" + callbackName + "&secid=" + requestSecid + "&ndays=1&iscr=0&iscca=0&ut=fa5fd1943c7b386f172d6893dbfba10b&fields1=" + fields1 + "&fields2=" + fields2 + "&_=" + Date.now();
         script.onerror = () => {
           cleanup();
           reject(new Error("分时走势脚本加载失败"));
@@ -2229,7 +2686,8 @@
       clearToast();
       state.requestId += 1;
       const requestId = state.requestId;
-      const callbackName = "__stJinglanEastmoney" + requestId;
+      const callbackName = "__xuStockEastmoney" + requestId;
+      const requestSecid = currentStock.secid;
       const fields = "f11,f12,f13,f14,f15,f16,f17,f18,f19,f20,f31,f32,f33,f34,f35,f36,f37,f38,f39,f40,f43,f44,f45,f46,f47,f48,f50,f57,f58,f59,f60,f71,f86,f116,f117,f162,f167,f168,f169,f170,f171";
 
       removeScript("eastmoneyQuoteScript");
@@ -2249,6 +2707,11 @@
 
         window[callbackName] = payload => {
           try {
+            if (requestSecid !== currentStock.secid) {
+              cleanup();
+              resolve();
+              return;
+            }
             renderEastmoney(payload);
             cleanup();
             resolve();
@@ -2259,7 +2722,7 @@
         };
 
         script.id = "eastmoneyQuoteScript";
-        script.src = "https://push2.eastmoney.com/api/qt/stock/get?cb=" + callbackName + "&secid=" + stock.secid + "&fields=" + fields + "&_=" + Date.now();
+        script.src = "https://push2.eastmoney.com/api/qt/stock/get?cb=" + callbackName + "&secid=" + requestSecid + "&fields=" + fields + "&_=" + Date.now();
         script.onerror = () => {
           cleanup();
           reject(new Error("东方财富行情脚本加载失败"));
@@ -2275,17 +2738,21 @@
 
       const fields1 = "f1,f2,f3,f7";
       const fields2 = "f51,f52,f53,f54,f55,f56,f57,f58,f59,f60,f61,f62,f63";
-      const intradayUrl = "https://push2.eastmoney.com/api/qt/stock/fflow/kline/get?secid=" + stock.secid + "&lmt=1&klt=1&fields1=" + fields1 + "&fields2=" + fields2;
-      const dayUrl = "https://push2his.eastmoney.com/api/qt/stock/fflow/daykline/get?secid=" + stock.secid + "&lmt=1&klt=101&fields1=" + fields1 + "&fields2=" + fields2 + "&ut=fa5fd1943c7b386f172d6893dbfba10b";
+      const requestSecid = currentStock.secid;
+      const intradayUrl = "https://push2.eastmoney.com/api/qt/stock/fflow/kline/get?secid=" + requestSecid + "&lmt=1&klt=1&fields1=" + fields1 + "&fields2=" + fields2;
+      const dayUrl = "https://push2his.eastmoney.com/api/qt/stock/fflow/daykline/get?secid=" + requestSecid + "&lmt=1&klt=101&fields1=" + fields1 + "&fields2=" + fields2 + "&ut=fa5fd1943c7b386f172d6893dbfba10b";
 
       try {
         const payload = await jsonp(intradayUrl, "FundFlow", 6500);
+        if (requestSecid !== currentStock.secid) return;
         renderFundFlow(latestFundFlowPoint(payload), "东方财富盘中资金流");
       } catch (intradayError) {
         try {
           const payload = await jsonp(dayUrl, "FundFlowDay", 6500);
+          if (requestSecid !== currentStock.secid) return;
           renderFundFlow(latestFundFlowPoint(payload), "东方财富日资金流");
         } catch (dayError) {
+          if (requestSecid !== currentStock.secid) return;
           if (!el.fundFlow.dataset.ready) {
             renderFundFlowEmpty("资金流接口暂时没有返回，请稍后自动重试。");
           }
@@ -2295,7 +2762,9 @@
 
     function loadTencentQuote() {
       removeScript("tencentQuoteScript");
-      window.v_s_sz000711 = "";
+      const variableName = "v_" + currentStock.tencentCode;
+      const requestCode = currentStock.tencentCode;
+      window[variableName] = "";
 
       return new Promise((resolve, reject) => {
         const script = document.createElement("script");
@@ -2311,9 +2780,14 @@
 
         script.id = "tencentQuoteScript";
         script.charset = "gbk";
-        script.src = "https://qt.gtimg.cn/q=" + stock.tencentCode + "&_=" + Date.now();
+        script.src = "https://qt.gtimg.cn/q=" + requestCode + "&_=" + Date.now();
         script.onload = () => {
-          const raw = window.v_s_sz000711;
+          if (requestCode !== currentStock.tencentCode) {
+            cleanup();
+            resolve();
+            return;
+          }
+          const raw = window[variableName];
           cleanup();
           if (!raw || raw.indexOf(",") === -1) {
             reject(new Error("腾讯备用行情返回为空"));
@@ -2374,6 +2848,40 @@
       loadQuote();
     }
 
+    el.stockSearchInput.addEventListener("input", () => {
+      state.searchEditing = true;
+    });
+
+    el.stockSearchForm.addEventListener("submit", async event => {
+      event.preventDefault();
+      const keyword = el.stockSearchInput.value.trim();
+      if (!keyword) {
+        showToast("请输入股票代码或中文名称。");
+        return;
+      }
+      try {
+        const candidate = await resolveStockSearch(keyword);
+        if (!candidate) {
+          showToast("没有找到对应 A股，请换成 6 位代码再试。");
+          return;
+        }
+        state.searchEditing = false;
+        const known = state.watchlist.find(item => item.displayCode === candidate.displayCode);
+        switchStock(known || candidate);
+      } catch (error) {
+        showToast("中文搜索暂时不可用，请先输入 6 位股票代码。");
+      }
+    });
+
+    el.watchAction.addEventListener("click", toggleCurrentWatch);
+
+    el.watchlist.addEventListener("click", event => {
+      const button = event.target.closest(".watch-chip");
+      if (!button) return;
+      const stockItem = state.watchlist.find(item => item.displayCode === button.dataset.code);
+      if (stockItem) switchStock(stockItem);
+    });
+
     el.refreshButtons.forEach(button => {
       button.addEventListener("click", () => {
         setRefreshInterval(Number(button.dataset.refresh));
@@ -2396,11 +2904,10 @@
       }
     });
 
+    loadWatchlist();
     updateTodayLabel();
-    renderMetricsFromEastmoney({});
-    renderOrderBookFromEastmoney({});
-    renderFundFlowEmpty();
-    renderChartMessage("等待分时走势...");
+    updateStockHeading(stockDisplayName(currentStock));
+    resetStockPanels();
     loadAnnouncements();
     loadDiscussions();
     state.announcementTimer = window.setInterval(loadAnnouncements, 60000);
