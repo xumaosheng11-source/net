@@ -619,6 +619,54 @@
       gap: 16px;
     }
 
+    .stock-feature {
+      margin-top: 16px;
+      min-height: 70px;
+      padding: 17px 20px;
+      border: 1px solid #c7d2fe;
+      border-radius: 8px;
+      background: linear-gradient(135deg, #eef4ff, #ffffff);
+      box-shadow: var(--shadow);
+      position: relative;
+      overflow: hidden;
+      display: grid;
+      align-items: center;
+    }
+
+    .stock-feature::before {
+      content: "";
+      position: absolute;
+      inset: 0 auto 0 0;
+      width: 5px;
+      background: #2563eb;
+    }
+
+    .stock-feature p {
+      margin: 0;
+      color: #1e293b;
+      font-size: clamp(16px, 2vw, 20px);
+      font-weight: 800;
+      line-height: 1.65;
+    }
+
+    .stock-feature.up {
+      border-color: #fecaca;
+      background: linear-gradient(135deg, #fff4f4, #ffffff);
+    }
+
+    .stock-feature.up::before {
+      background: #dc2626;
+    }
+
+    .stock-feature.down {
+      border-color: #bbf7d0;
+      background: linear-gradient(135deg, #f0fdf4, #ffffff);
+    }
+
+    .stock-feature.down::before {
+      background: #16a34a;
+    }
+
     .book {
       display: grid;
       gap: 8px;
@@ -1458,6 +1506,10 @@
       </div>
     </section>
 
+    <section id="stockFeature" class="stock-feature" aria-live="polite">
+      <p>正在整理该股所属领域与近期股价走势。</p>
+    </section>
+
     <section class="section-grid">
       <div class="panel">
         <h2 id="announcementTitle">ST京蓝最新公告</h2>
@@ -1542,6 +1594,7 @@
       metrics: document.getElementById("metrics"),
       orderBook: document.getElementById("orderBook"),
       fundFlow: document.getElementById("fundFlow"),
+      stockFeature: document.getElementById("stockFeature"),
       toast: document.getElementById("toast"),
       marketState: document.getElementById("marketState"),
       stateNote: document.getElementById("stateNote"),
@@ -1575,6 +1628,10 @@
       watchQuoteInFlight: false,
       historicalHigh: {},
       historicalHighInFlight: {},
+      stockIndustries: {},
+      priceFeatureHistory: {},
+      priceFeatureHistoryInFlight: {},
+      priceFeatureHistoryUpdatedAt: {},
       chartRange: "today",
       searchEditing: false
     };
@@ -1905,6 +1962,7 @@
       renderMetricsFromEastmoney({});
       renderOrderBookFromEastmoney({});
       renderFundFlowEmpty();
+      renderStockFeature();
       renderChartMessage("等待走势...");
       renderAnnouncementMessage("正在读取公告...");
       renderDiscussionMessage("正在读取热门讨论...");
@@ -2587,6 +2645,8 @@
       const [marketState, stateNote] = inferMarketState(stamp.date, stamp.time);
       const quotedName = data.f58 || stockDisplayName(currentStock);
       const name = currentStock.preferredName || quotedName;
+      const industry = String(data.f100 || "").trim();
+      if (industry) state.stockIndustries[currentStock.displayCode] = industry;
       currentStock.name = name;
       state.watchQuotes[currentStock.displayCode] = { name, changePct };
       const savedStock = state.watchlist.find(item => item.displayCode === currentStock.displayCode);
@@ -2604,7 +2664,9 @@
       renderMetricsFromEastmoney(data);
       renderOrderBookFromEastmoney(data);
       renderWatchlist();
+      renderStockFeature();
       loadHistoricalHigh();
+      loadPriceFeatureHistory();
     }
 
     function renderTencent(raw) {
@@ -2641,6 +2703,8 @@
         ["刷新状态", "成功"]
       ]);
       el.orderBook.innerHTML = `<div class="stamp">备用行情源不提供五档挂单量，暂时无法判断买卖意愿。</div>`;
+      renderStockFeature();
+      loadPriceFeatureHistory();
     }
 
     function removeScript(id) {
@@ -2948,8 +3012,149 @@
         open: numberValue(parts[1]),
         close: numberValue(parts[2]),
         high: numberValue(parts[3]),
-        low: numberValue(parts[4])
+        low: numberValue(parts[4]),
+        pct: numberValue(parts[8])
       };
+    }
+
+    function stockIndustry() {
+      const raw = String(state.stockIndustries[currentStock.displayCode] || "").trim();
+      if (raw) return raw.replace(/行业$/, "") || raw;
+      return currentStock.market || "A股";
+    }
+
+    function featureLatestPrice(points) {
+      const quotePrice = state.latestQuote ? emPrice(state.latestQuote, "f43") : null;
+      if (quotePrice !== null && quotePrice > 0) return quotePrice;
+      const last = points[points.length - 1];
+      return last ? last.close : null;
+    }
+
+    function featureChange(points, sessions) {
+      const current = featureLatestPrice(points);
+      const base = points[points.length - 1 - sessions];
+      if (current === null || !base || base.close === null || base.close <= 0) return null;
+      return (current - base.close) / base.close * 100;
+    }
+
+    function featureDailyPct(points, index) {
+      const point = points[index];
+      const rawPct = numberValue(point && point.pct);
+      if (rawPct !== null) return rawPct;
+      const previous = points[index - 1];
+      if (!point || !previous || point.close === null || previous.close === null || previous.close <= 0) return null;
+      return (point.close - previous.close) / previous.close * 100;
+    }
+
+    function featureLimitStreak(points) {
+      let direction = 0;
+      let count = 0;
+      for (let index = points.length - 1; index >= 0; index -= 1) {
+        const pct = featureDailyPct(points, index);
+        const nextDirection = pct !== null && pct >= 9.5 ? 1 : pct !== null && pct <= -9.5 ? -1 : 0;
+        if (!nextDirection) break;
+        if (!direction) direction = nextDirection;
+        if (direction !== nextDirection) break;
+        count += 1;
+      }
+      return { direction, count };
+    }
+
+    function featurePctText(value) {
+      return Math.abs(value).toFixed(Math.abs(value) >= 100 ? 0 : 1) + "%";
+    }
+
+    function featureSummary(points) {
+      const industry = stockIndustry();
+      if (!Array.isArray(points) || points.length < 6) {
+        return { text: "该股属于" + industry + "领域，正在整理近期股价走势。", tone: "flat" };
+      }
+
+      const limitStreak = featureLimitStreak(points);
+      if (limitStreak.count >= 2) {
+        const action = limitStreak.direction > 0 ? "涨停" : "跌停";
+        return {
+          text: "该股属于" + industry + "领域，近期连续" + limitStreak.count + "个交易日" + action + "，短线波动显著。",
+          tone: limitStreak.direction > 0 ? "up" : "down"
+        };
+      }
+
+      const five = featureChange(points, 5);
+      const ten = featureChange(points, 10);
+      const month = featureChange(points, 22);
+      const year = featureChange(points, 250);
+
+      if (year !== null && year >= 100) {
+        return {
+          text: "该股属于" + industry + "领域，近一年累计上涨" + featurePctText(year) + "，股价已较一年前翻倍。",
+          tone: "up"
+        };
+      }
+      if (year !== null && year <= -50) {
+        return {
+          text: "该股属于" + industry + "领域，近一年累计下跌" + featurePctText(year) + "，股价较一年前已跌去过半。",
+          tone: "down"
+        };
+      }
+
+      const movements = [
+        { label: "近五个交易日", value: five, normal: 5 },
+        { label: "近十个交易日", value: ten, normal: 9 },
+        { label: "近一个月", value: month, normal: 16 },
+        { label: "近一年", value: year, normal: 36 }
+      ].filter(item => item.value !== null);
+
+      if (!movements.length) {
+        return { text: "该股属于" + industry + "领域，近期股价走势数据仍在补充。", tone: "flat" };
+      }
+
+      const dominant = movements.sort((left, right) => Math.abs(right.value) / right.normal - Math.abs(left.value) / left.normal)[0];
+      const direction = dominant.value > 0 ? "上涨" : dominant.value < 0 ? "下跌" : "变动";
+      const magnitude = Math.abs(dominant.value);
+      let ending = "走势相对平稳。";
+      if (magnitude >= 15) ending = "走势表现活跃。";
+      else if (magnitude >= 5) ending = dominant.value > 0 ? "短线走势偏强。" : "短线仍在调整。";
+      else if (magnitude >= 1.5) ending = dominant.value > 0 ? "短线略占优势。" : "短线略偏弱。";
+
+      return {
+        text: "该股属于" + industry + "领域，" + dominant.label + "累计" + direction + featurePctText(dominant.value) + "，" + ending,
+        tone: trendClass(dominant.value)
+      };
+    }
+
+    function renderStockFeature() {
+      const points = state.priceFeatureHistory[currentStock.displayCode];
+      const summary = featureSummary(points);
+      el.stockFeature.className = "stock-feature " + summary.tone;
+      el.stockFeature.innerHTML = "<p>" + escapeHtml(summary.text) + "</p>";
+    }
+
+    async function loadPriceFeatureHistory() {
+      const code = currentStock.displayCode;
+      const isFresh = Date.now() - (state.priceFeatureHistoryUpdatedAt[code] || 0) < 5 * 60 * 1000;
+      if ((state.priceFeatureHistory[code] !== undefined && isFresh) || state.priceFeatureHistoryInFlight[code]) {
+        if (currentStock.displayCode === code) renderStockFeature();
+        return;
+      }
+
+      state.priceFeatureHistoryInFlight[code] = true;
+      const requestSecid = currentStock.secid;
+      const fields1 = "f1,f2,f3,f4,f5,f6";
+      const fields2 = "f51,f52,f53,f54,f55,f56,f57,f58,f59,f60,f61";
+      const url = "https://push2his.eastmoney.com/api/qt/stock/kline/get?secid=" + requestSecid + "&ut=fa5fd1943c7b386f172d6893dbfba10b&fields1=" + fields1 + "&fields2=" + fields2 + "&klt=101&fqt=0&end=20500101&lmt=270";
+
+      try {
+        const payload = await jsonp(url, "FeatureHistory", 9000);
+        const klines = payload && payload.data && Array.isArray(payload.data.klines) ? payload.data.klines : [];
+        const points = klines.map(parseKlinePoint).filter(point => point.close !== null && point.close > 0);
+        state.priceFeatureHistory[code] = points.length >= 2 ? points : null;
+      } catch (error) {
+        state.priceFeatureHistory[code] = null;
+      } finally {
+        state.priceFeatureHistoryUpdatedAt[code] = Date.now();
+        state.priceFeatureHistoryInFlight[code] = false;
+        if (currentStock.displayCode === code) renderStockFeature();
+      }
     }
 
     async function loadHistoricalHigh() {
@@ -3167,7 +3372,7 @@
       const requestId = state.requestId;
       const callbackName = "__xuStockEastmoney" + requestId;
       const requestSecid = currentStock.secid;
-      const fields = "f11,f12,f13,f14,f15,f16,f17,f18,f19,f20,f31,f32,f33,f34,f35,f36,f37,f38,f39,f40,f43,f44,f45,f46,f47,f48,f50,f57,f58,f59,f60,f71,f86,f116,f117,f162,f167,f168,f169,f170,f171";
+      const fields = "f11,f12,f13,f14,f15,f16,f17,f18,f19,f20,f31,f32,f33,f34,f35,f36,f37,f38,f39,f40,f43,f44,f45,f46,f47,f48,f50,f57,f58,f59,f60,f71,f86,f100,f116,f117,f162,f167,f168,f169,f170,f171";
 
       removeScript("eastmoneyQuoteScript");
 
