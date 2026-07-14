@@ -377,11 +377,59 @@
       font-size: 12px;
     }
 
+    .chart-periods {
+      display: grid;
+      grid-template-columns: repeat(5, minmax(0, 1fr));
+      gap: 6px;
+    }
+
+    .chart-period {
+      min-height: 30px;
+      padding: 0 8px;
+      border-radius: 8px;
+      border-color: #bfdbfe;
+      background: #eff6ff;
+      color: #1d4ed8;
+      box-shadow: none;
+      font-size: 12px;
+      white-space: nowrap;
+    }
+
+    .chart-period.active {
+      background: #111827;
+      border-color: #111827;
+      color: #ffffff;
+    }
+
     .chart-legend {
       display: flex;
       gap: 10px;
       flex-wrap: wrap;
       align-items: center;
+    }
+
+    .chart-side {
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      gap: 12px;
+      flex-wrap: wrap;
+      min-width: 0;
+    }
+
+    .chart-stats {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+      color: #475467;
+      font-size: 12px;
+      font-weight: 800;
+    }
+
+    .chart-stats strong {
+      color: #18202f;
+      font-weight: 900;
     }
 
     .legend-item {
@@ -1379,7 +1427,7 @@
                   <span class="legend-item"><span class="legend-dot" style="background:#d97706"></span>均价</span>
                 </span>
               </div>
-              <div class="chart-message">等待分时走势...</div>
+              <div class="chart-message">等待走势...</div>
             </div>
             <div id="stamp" class="stamp">等待行情源返回...</div>
           </div>
@@ -1457,6 +1505,13 @@
 
     const stockStorageKey = "xuFamilyWatchlistV1";
     const activeStockStorageKey = "xuFamilyActiveStockV1";
+    const chartRanges = [
+      { key: "today", label: "今日" },
+      { key: "five", label: "五日" },
+      { key: "ten", label: "十日" },
+      { key: "month", label: "一月" },
+      { key: "year", label: "年" }
+    ];
     let currentStock = { ...defaultWatchlist[0] };
 
     const fallbackAnnouncements = [
@@ -1518,6 +1573,9 @@
       watchlist: [],
       watchQuotes: {},
       watchQuoteInFlight: false,
+      historicalHigh: {},
+      historicalHighInFlight: {},
+      chartRange: "today",
       searchEditing: false
     };
 
@@ -1835,6 +1893,7 @@
       state.announcements = [];
       state.latestQuote = null;
       state.latestFundFlow = null;
+      state.chartLineColor = "#2563eb";
       delete el.fundFlow.dataset.ready;
       el.price.textContent = "--";
       el.price.className = "price flat";
@@ -1846,7 +1905,7 @@
       renderMetricsFromEastmoney({});
       renderOrderBookFromEastmoney({});
       renderFundFlowEmpty();
-      renderChartMessage("等待分时走势...");
+      renderChartMessage("等待走势...");
       renderAnnouncementMessage("正在读取公告...");
       renderDiscussionMessage("正在读取热门讨论...");
     }
@@ -1890,15 +1949,66 @@
       showToast("已加入自选股。");
     }
 
-    function chartShell(content, extra = "") {
-      el.trendChart.innerHTML = `
-        <div class="chart-head">
-          <strong>分时走势</strong>
+    function chartTitle() {
+      const active = chartRanges.find(range => range.key === state.chartRange);
+      return active && active.key !== "today" ? active.label + "走势" : "分时走势";
+    }
+
+    function chartLegend() {
+      if (state.chartRange === "today") {
+        return `
           <span class="chart-legend">
             <span class="legend-item"><span class="legend-dot" style="background:#2563eb"></span>现价</span>
             <span class="legend-item"><span class="legend-dot" style="background:#d97706"></span>均价</span>
           </span>
+        `;
+      }
+      const lineColor = state.chartLineColor || "#2563eb";
+      if (state.chartRange === "five") {
+        return `
+          <span class="chart-legend">
+            <span class="legend-item" style="color:${lineColor}"><span class="legend-dot" style="background:${lineColor}"></span>价格</span>
+          </span>
+        `;
+      }
+      return `
+        <span class="chart-legend">
+          <span class="legend-item" style="color:${lineColor}"><span class="legend-dot" style="background:${lineColor}"></span>收盘价</span>
+        </span>
+      `;
+    }
+
+    function chartStats() {
+      const totalMarketValue = state.latestQuote ? amountText(state.latestQuote.f116) : "--";
+      const high = state.historicalHigh[currentStock.displayCode];
+      return `
+        <span class="chart-stats">
+          <span>总市值 <strong>${escapeHtml(totalMarketValue)}</strong></span>
+          <span>历史最高 <strong>${escapeHtml(priceText(high))}</strong></span>
+        </span>
+      `;
+    }
+
+    function chartPeriodButtons() {
+      return `
+        <div class="chart-periods" aria-label="走势图周期">
+          ${chartRanges.map(range => `
+            <button class="chart-period ${state.chartRange === range.key ? "active" : ""}" type="button" data-chart-range="${range.key}" aria-pressed="${state.chartRange === range.key ? "true" : "false"}">${range.label}</button>
+          `).join("")}
         </div>
+      `;
+    }
+
+    function chartShell(content, extra = "") {
+      el.trendChart.innerHTML = `
+        <div class="chart-head">
+          <strong>${chartTitle()}</strong>
+          <span class="chart-side">
+            ${chartStats()}
+            ${chartLegend()}
+          </span>
+        </div>
+        ${chartPeriodButtons()}
         ${content}
         ${extra ? `<div class="stamp">${extra}</div>` : ""}
       `;
@@ -1909,14 +2019,29 @@
     }
 
     function svgPath(points, getValue, width, height, pad, min, max) {
+      const left = typeof pad === "number" ? pad : pad.left;
+      const right = typeof pad === "number" ? pad : pad.right;
+      const top = typeof pad === "number" ? pad : pad.top;
+      const bottom = typeof pad === "number" ? pad : pad.bottom;
       const spread = Math.max(.01, max - min);
-      const usableW = width - pad * 2;
-      const usableH = height - pad * 2;
+      const usableW = width - left - right;
+      const usableH = height - top - bottom;
       return points.map((point, index) => {
-        const x = pad + (points.length === 1 ? usableW : index / (points.length - 1) * usableW);
-        const y = pad + (max - getValue(point)) / spread * usableH;
+        const x = left + (points.length === 1 ? usableW : index / (points.length - 1) * usableW);
+        const y = top + (max - getValue(point)) / spread * usableH;
         return (index === 0 ? "M" : "L") + x.toFixed(1) + " " + y.toFixed(1);
       }).join(" ");
+    }
+
+    function priceAxisLabel(text, axisX, y) {
+      const labelWidth = 54;
+      const textX = axisX - 10;
+      return `
+        <g>
+          <rect x="${Math.max(1, axisX - labelWidth - 13)}" y="${y - 14}" width="${labelWidth}" height="19" rx="5" fill="#ffffff" opacity=".92" />
+          <text x="${textX}" y="${y}" text-anchor="end" fill="#18202f" font-size="15" font-weight="900">${escapeHtml(text)}</text>
+        </g>
+      `;
     }
 
     function renderTrendChart(points) {
@@ -1932,25 +2057,167 @@
       const max = Math.max(...values);
       const width = 640;
       const height = 170;
-      const pad = 18;
+      const pad = { left: 66, right: 18, top: 18, bottom: 28 };
       const pricePath = svgPath(valid, point => point.price, width, height, pad, min, max);
       const avgPath = avgPoints.length > 1 ? svgPath(avgPoints, point => point.avg, width, height, pad, min, max) : "";
       const last = valid[valid.length - 1];
       const first = valid[0];
       const midY = (height / 2).toFixed(1);
+      const lastY = (pad.top + (max - last.price) / Math.max(.01, max - min) * (height - pad.top - pad.bottom)).toFixed(1);
 
       chartShell(`
         <svg viewBox="0 0 ${width} ${height}" role="img" aria-label="${escapeHtml(stockDisplayName(currentStock))}分时价格曲线和均价线">
-          <line x1="${pad}" y1="${pad}" x2="${pad}" y2="${height - pad}" stroke="#d8e0e9" />
-          <line x1="${pad}" y1="${height - pad}" x2="${width - pad}" y2="${height - pad}" stroke="#d8e0e9" />
-          <line x1="${pad}" y1="${midY}" x2="${width - pad}" y2="${midY}" stroke="#e5e7eb" stroke-dasharray="5 6" />
+          <line x1="${pad.left}" y1="${pad.top}" x2="${pad.left}" y2="${height - pad.bottom}" stroke="#d8e0e9" />
+          <line x1="${pad.left}" y1="${height - pad.bottom}" x2="${width - pad.right}" y2="${height - pad.bottom}" stroke="#d8e0e9" />
+          <line x1="${pad.left}" y1="${midY}" x2="${width - pad.right}" y2="${midY}" stroke="#e5e7eb" stroke-dasharray="5 6" />
           <path d="${pricePath}" fill="none" stroke="#2563eb" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" />
           ${avgPath ? `<path d="${avgPath}" fill="none" stroke="#d97706" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" />` : ""}
-          <circle cx="${width - pad}" cy="${(pad + (max - last.price) / Math.max(.01, max - min) * (height - pad * 2)).toFixed(1)}" r="4" fill="#2563eb" />
-          <text x="${pad}" y="14" fill="#667085" font-size="12">${priceText(max)}</text>
-          <text x="${pad}" y="${height - 4}" fill="#667085" font-size="12">${priceText(min)}</text>
+          <circle cx="${width - pad.right}" cy="${lastY}" r="4" fill="#2563eb" />
+          ${priceAxisLabel(priceText(max), pad.left, 17)}
+          ${priceAxisLabel(priceText(min), pad.left, height - pad.bottom)}
         </svg>
       `, `${first.time || "--"} 至 ${last.time || "--"}，现价 ${priceText(last.price)}，均价 ${priceText(last.avg)}`);
+    }
+
+    function shortMonthDay(date) {
+      const raw = String(date || "");
+      if (/^\d{4}-\d{2}-\d{2}\s+/.test(raw)) return raw.slice(5, 10);
+      if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) return raw.slice(5);
+      if (/^\d{8}$/.test(raw)) return raw.slice(4, 6) + "-" + raw.slice(6, 8);
+      return raw || "--";
+    }
+
+    function dateKey(value) {
+      const raw = String(value || "");
+      if (/^\d{4}-\d{2}-\d{2}/.test(raw)) return raw.slice(0, 10);
+      if (/^\d{8}/.test(raw)) return raw.slice(0, 4) + "-" + raw.slice(4, 6) + "-" + raw.slice(6, 8);
+      return raw;
+    }
+
+    function monthLabel(value) {
+      const key = dateKey(value);
+      const match = key.match(/^\d{4}-(\d{2})/);
+      return match ? String(Number(match[1])) + "月" : shortMonthDay(value);
+    }
+
+    function chartTickItems(points, label, maxTicks = 6) {
+      if (!points.length) return [];
+
+      if (label === "年") {
+        const byMonth = [];
+        points.forEach((point, index) => {
+          const key = dateKey(point.date).slice(0, 7);
+          if (key && !byMonth.some(item => item.key === key)) {
+            byMonth.push({ key, index, text: monthLabel(point.date) });
+          }
+        });
+        const step = Math.max(1, Math.ceil(byMonth.length / maxTicks));
+        return byMonth.filter((item, index) => index % step === 0 || index === byMonth.length - 1);
+      }
+
+      const byDate = [];
+      points.forEach((point, index) => {
+        const key = dateKey(point.date);
+        if (key && !byDate.some(item => item.key === key)) {
+          byDate.push({ key, index, text: shortMonthDay(point.date) });
+        }
+      });
+      if (byDate.length <= maxTicks) return byDate;
+      const step = Math.max(1, Math.ceil(byDate.length / maxTicks));
+      return byDate.filter((item, index) => index % step === 0 || index === byDate.length - 1);
+    }
+
+    function chartAxisLabels(points, label, width, height, pad) {
+      const left = typeof pad === "number" ? pad : pad.left;
+      const right = typeof pad === "number" ? pad : pad.right;
+      const ticks = chartTickItems(points, label, label === "年" ? 7 : 6);
+      return ticks.map(item => {
+        const x = left + item.index / Math.max(1, points.length - 1) * (width - left - right);
+        const anchor = item.index === 0 ? "start" : item.index === points.length - 1 ? "end" : "middle";
+        return `<text x="${x.toFixed(1)}" y="${height - 4}" text-anchor="${anchor}" fill="#667085" font-size="11">${escapeHtml(item.text)}</text>`;
+      }).join("");
+    }
+
+    function renderFiveDayTrendChart(points) {
+      const valid = points.filter(point => point.price !== null);
+      if (valid.length < 2) {
+        renderChartMessage("五日走势暂无足够数据。休市、停牌或行情源延迟时可能出现这种情况。");
+        return;
+      }
+
+      const values = valid.map(point => point.price);
+      const min = Math.min(...values);
+      const max = Math.max(...values);
+      const width = 640;
+      const height = 170;
+      const pad = { left: 66, right: 18, top: 18, bottom: 28 };
+      const pricePath = svgPath(valid, point => point.price, width, height, pad, min, max);
+      const last = valid[valid.length - 1];
+      const first = valid[0];
+      const midY = (height / 2).toFixed(1);
+      const cls = trendClass(last.price - first.price);
+      const stroke = cls === "up" ? "#dc2626" : cls === "down" ? "#16a34a" : "#2563eb";
+      state.chartLineColor = stroke;
+      const lastY = (pad.top + (max - last.price) / Math.max(.01, max - min) * (height - pad.top - pad.bottom)).toFixed(1);
+      const ticks = chartTickItems(valid, "五日", 5);
+      const separators = ticks.slice(1).map(item => {
+        const x = pad.left + item.index / Math.max(1, valid.length - 1) * (width - pad.left - pad.right);
+        return `<line x1="${x.toFixed(1)}" y1="${pad.top}" x2="${x.toFixed(1)}" y2="${height - pad.bottom}" stroke="#e5e7eb" stroke-dasharray="4 6" />`;
+      }).join("");
+      const dateLabels = chartAxisLabels(valid, "五日", width, height, pad);
+      const changePct = first.price ? (last.price - first.price) / first.price * 100 : null;
+
+      chartShell(`
+        <svg viewBox="0 0 ${width} ${height}" role="img" aria-label="${escapeHtml(stockDisplayName(currentStock))}五日价格曲线">
+          <line x1="${pad.left}" y1="${pad.top}" x2="${pad.left}" y2="${height - pad.bottom}" stroke="#d8e0e9" />
+          <line x1="${pad.left}" y1="${height - pad.bottom}" x2="${width - pad.right}" y2="${height - pad.bottom}" stroke="#d8e0e9" />
+          <line x1="${pad.left}" y1="${midY}" x2="${width - pad.right}" y2="${midY}" stroke="#e5e7eb" stroke-dasharray="5 6" />
+          ${separators}
+          <path d="${pricePath}" fill="none" stroke="${stroke}" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" />
+          <circle cx="${width - pad.right}" cy="${lastY}" r="4" fill="${stroke}" />
+          ${priceAxisLabel(priceText(max), pad.left, 17)}
+          ${priceAxisLabel(priceText(min), pad.left, height - pad.bottom)}
+          ${dateLabels}
+        </svg>
+      `, `${shortMonthDay(first.date)} ${first.time || "--"} 至 ${shortMonthDay(last.date)} ${last.time || "--"}，最新 ${priceText(last.price)}，区间涨跌 ${signedPctText(changePct)}`);
+    }
+
+    function renderHistoryChart(points, label, valueLabel = "收盘") {
+      const valid = points.filter(point => point.close !== null && point.close > 0);
+      if (valid.length < 2) {
+        renderChartMessage(label + "暂无足够数据。休市、停牌或行情源延迟时可能出现这种情况。");
+        return;
+      }
+
+      const values = valid.map(point => point.close);
+      const min = Math.min(...values);
+      const max = Math.max(...values);
+      const width = 640;
+      const height = 170;
+      const pad = { left: 66, right: 18, top: 18, bottom: 28 };
+      const closePath = svgPath(valid, point => point.close, width, height, pad, min, max);
+      const last = valid[valid.length - 1];
+      const first = valid[0];
+      const cls = trendClass(last.close - first.close);
+      const stroke = cls === "up" ? "#dc2626" : cls === "down" ? "#16a34a" : "#2563eb";
+      state.chartLineColor = stroke;
+      const lastY = (pad.top + (max - last.close) / Math.max(.01, max - min) * (height - pad.top - pad.bottom)).toFixed(1);
+      const midY = (height / 2).toFixed(1);
+      const changePct = first.close ? (last.close - first.close) / first.close * 100 : null;
+      const axisLabels = chartAxisLabels(valid, label, width, height, pad);
+
+      chartShell(`
+        <svg viewBox="0 0 ${width} ${height}" role="img" aria-label="${escapeHtml(stockDisplayName(currentStock))}${escapeHtml(label)}价格曲线">
+          <line x1="${pad.left}" y1="${pad.top}" x2="${pad.left}" y2="${height - pad.bottom}" stroke="#d8e0e9" />
+          <line x1="${pad.left}" y1="${height - pad.bottom}" x2="${width - pad.right}" y2="${height - pad.bottom}" stroke="#d8e0e9" />
+          <line x1="${pad.left}" y1="${midY}" x2="${width - pad.right}" y2="${midY}" stroke="#e5e7eb" stroke-dasharray="5 6" />
+          <path d="${closePath}" fill="none" stroke="${stroke}" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" />
+          <circle cx="${width - pad.right}" cy="${lastY}" r="4" fill="${stroke}" />
+          ${priceAxisLabel(priceText(max), pad.left, 17)}
+          ${priceAxisLabel(priceText(min), pad.left, height - pad.bottom)}
+          ${axisLabels}
+        </svg>
+      `, `${first.date || "--"} 至 ${last.date || "--"}，最新${valueLabel} ${priceText(last.close)}，区间涨跌 ${signedPctText(changePct)}`);
     }
 
     function formatEastmoneyTime(value) {
@@ -2337,6 +2604,7 @@
       renderMetricsFromEastmoney(data);
       renderOrderBookFromEastmoney(data);
       renderWatchlist();
+      loadHistoricalHigh();
     }
 
     function renderTencent(raw) {
@@ -2662,24 +2930,63 @@
       const parts = String(raw || "").split(",");
       const dateTime = parts[0] || "";
       const time = dateTime.includes(" ") ? dateTime.split(" ").pop() : dateTime;
+      const date = dateTime.includes(" ") ? dateTime.split(" ")[0] : "";
       const price = numberValue(parts[1]);
       const avgRaw = numberValue(parts[7]);
       return {
+        date,
         time,
         price,
         avg: avgRaw && avgRaw > 0 ? avgRaw : null
       };
     }
 
-    function loadEastmoneyTrend() {
+    function parseKlinePoint(raw) {
+      const parts = String(raw || "").split(",");
+      return {
+        date: parts[0] || "",
+        open: numberValue(parts[1]),
+        close: numberValue(parts[2]),
+        high: numberValue(parts[3]),
+        low: numberValue(parts[4])
+      };
+    }
+
+    async function loadHistoricalHigh() {
+      const code = currentStock.displayCode;
+      if (state.historicalHigh[code] !== undefined || state.historicalHighInFlight[code]) return;
+      state.historicalHighInFlight[code] = true;
+      const requestSecid = currentStock.secid;
+      const callbackPrefix = "HistoryHigh";
+      const fields1 = "f1,f2,f3,f4,f5,f6";
+      const fields2 = "f51,f52,f53,f54,f55";
+      const url = "https://push2his.eastmoney.com/api/qt/stock/kline/get?secid=" + requestSecid + "&ut=fa5fd1943c7b386f172d6893dbfba10b&fields1=" + fields1 + "&fields2=" + fields2 + "&klt=101&fqt=0&end=20500101&lmt=10000";
+
+      try {
+        const payload = await jsonp(url, callbackPrefix, 9000);
+        const klines = payload && payload.data && Array.isArray(payload.data.klines) ? payload.data.klines : [];
+        const highs = klines.map(parseKlinePoint).map(point => point.high).filter(value => value !== null && value > 0);
+        state.historicalHigh[code] = highs.length ? Math.max(...highs) : null;
+        if (currentStock.displayCode === code) {
+          loadActiveChart().catch(() => {});
+        }
+      } catch (error) {
+        state.historicalHigh[code] = null;
+      } finally {
+        state.historicalHighInFlight[code] = false;
+      }
+    }
+
+    function loadEastmoneyTrend(days = 1) {
       state.requestId += 1;
       const requestId = state.requestId;
       const callbackName = "__xuStockTrend" + requestId;
       const requestSecid = currentStock.secid;
+      const requestRange = state.chartRange;
       const fields1 = "f1,f2,f3,f4,f5,f6,f7,f8,f9,f10,f11";
       const fields2 = "f51,f52,f53,f54,f55,f56,f57,f58";
 
-      renderChartMessage("正在连接分时走势...");
+      renderChartMessage(days > 1 ? "正在连接五日走势..." : "正在连接分时走势...");
       removeScript("eastmoneyTrendScript");
 
       return new Promise((resolve, reject) => {
@@ -2697,7 +3004,7 @@
 
         window[callbackName] = payload => {
           try {
-            if (requestSecid !== currentStock.secid) {
+            if (requestSecid !== currentStock.secid || requestRange !== state.chartRange) {
               cleanup();
               resolve();
               return;
@@ -2706,7 +3013,12 @@
             if (!Array.isArray(trends) || trends.length < 2) {
               throw new Error("分时走势返回为空");
             }
-            renderTrendChart(trends.map(parseTrendPoint));
+            const parsed = trends.map(parseTrendPoint);
+            if (days > 1) {
+              renderFiveDayTrendChart(parsed);
+            } else {
+              renderTrendChart(parsed);
+            }
             cleanup();
             resolve();
           } catch (error) {
@@ -2716,13 +3028,137 @@
         };
 
         script.id = "eastmoneyTrendScript";
-        script.src = "https://push2his.eastmoney.com/api/qt/stock/trends2/get?cb=" + callbackName + "&secid=" + requestSecid + "&ndays=1&iscr=0&iscca=0&ut=fa5fd1943c7b386f172d6893dbfba10b&fields1=" + fields1 + "&fields2=" + fields2 + "&_=" + Date.now();
+        script.src = "https://push2his.eastmoney.com/api/qt/stock/trends2/get?cb=" + callbackName + "&secid=" + requestSecid + "&ndays=" + days + "&iscr=0&iscca=0&ut=fa5fd1943c7b386f172d6893dbfba10b&fields1=" + fields1 + "&fields2=" + fields2 + "&_=" + Date.now();
         script.onerror = () => {
           cleanup();
           reject(new Error("分时走势脚本加载失败"));
         };
         document.head.appendChild(script);
       });
+    }
+
+    function dailyRangeConfig(range) {
+      if (range === "ten") return { limit: 10, label: "十日" };
+      if (range === "month") return { limit: 22, label: "一月" };
+      if (range === "year") return { limit: 250, label: "年" };
+      return { limit: 10, label: "走势" };
+    }
+
+    function loadEastmoneyFiveDayChart() {
+      state.requestId += 1;
+      const requestId = state.requestId;
+      const callbackName = "__xuStockFiveKline" + requestId;
+      const requestSecid = currentStock.secid;
+      const requestRange = state.chartRange;
+      const fields1 = "f1,f2,f3,f4,f5,f6";
+      const fields2 = "f51,f52,f53,f54,f55,f56,f57,f58,f59,f60,f61";
+
+      renderChartMessage("正在连接五日走势...");
+      removeScript("eastmoneyFiveKlineScript");
+
+      return new Promise((resolve, reject) => {
+        const script = document.createElement("script");
+        const timeout = window.setTimeout(() => {
+          cleanup();
+          reject(new Error("五日走势接口连接超时"));
+        }, 5500);
+
+        function cleanup() {
+          window.clearTimeout(timeout);
+          removeScript("eastmoneyFiveKlineScript");
+          try { delete window[callbackName]; } catch (error) { window[callbackName] = undefined; }
+        }
+
+        window[callbackName] = payload => {
+          try {
+            if (requestSecid !== currentStock.secid || requestRange !== state.chartRange) {
+              cleanup();
+              resolve();
+              return;
+            }
+            const klines = payload && payload.data && payload.data.klines;
+            if (!Array.isArray(klines) || klines.length < 2) {
+              throw new Error("五日走势返回为空");
+            }
+            renderHistoryChart(klines.map(parseKlinePoint), "五日", "价格");
+            cleanup();
+            resolve();
+          } catch (error) {
+            cleanup();
+            reject(error);
+          }
+        };
+
+        script.id = "eastmoneyFiveKlineScript";
+        script.src = "https://push2his.eastmoney.com/api/qt/stock/kline/get?cb=" + callbackName + "&secid=" + requestSecid + "&ut=fa5fd1943c7b386f172d6893dbfba10b&fields1=" + fields1 + "&fields2=" + fields2 + "&klt=5&fqt=1&end=20500101&lmt=240&_=" + Date.now();
+        script.onerror = () => {
+          cleanup();
+          reject(new Error("五日走势脚本加载失败"));
+        };
+        document.head.appendChild(script);
+      });
+    }
+
+    function loadEastmoneyDailyChart(range) {
+      state.requestId += 1;
+      const requestId = state.requestId;
+      const callbackName = "__xuStockKline" + requestId;
+      const requestSecid = currentStock.secid;
+      const requestRange = state.chartRange;
+      const config = dailyRangeConfig(range);
+      const fields1 = "f1,f2,f3,f4,f5,f6";
+      const fields2 = "f51,f52,f53,f54,f55,f56,f57,f58,f59,f60,f61";
+
+      renderChartMessage("正在连接" + config.label + "走势...");
+      removeScript("eastmoneyKlineScript");
+
+      return new Promise((resolve, reject) => {
+        const script = document.createElement("script");
+        const timeout = window.setTimeout(() => {
+          cleanup();
+          reject(new Error(config.label + "走势接口连接超时"));
+        }, 5500);
+
+        function cleanup() {
+          window.clearTimeout(timeout);
+          removeScript("eastmoneyKlineScript");
+          try { delete window[callbackName]; } catch (error) { window[callbackName] = undefined; }
+        }
+
+        window[callbackName] = payload => {
+          try {
+            if (requestSecid !== currentStock.secid || requestRange !== state.chartRange) {
+              cleanup();
+              resolve();
+              return;
+            }
+            const klines = payload && payload.data && payload.data.klines;
+            if (!Array.isArray(klines) || klines.length < 2) {
+              throw new Error(config.label + "走势返回为空");
+            }
+            renderHistoryChart(klines.map(parseKlinePoint), config.label);
+            cleanup();
+            resolve();
+          } catch (error) {
+            cleanup();
+            reject(error);
+          }
+        };
+
+        script.id = "eastmoneyKlineScript";
+        script.src = "https://push2his.eastmoney.com/api/qt/stock/kline/get?cb=" + callbackName + "&secid=" + requestSecid + "&ut=fa5fd1943c7b386f172d6893dbfba10b&fields1=" + fields1 + "&fields2=" + fields2 + "&klt=101&fqt=1&end=20500101&lmt=" + config.limit + "&_=" + Date.now();
+        script.onerror = () => {
+          cleanup();
+          reject(new Error(config.label + "走势脚本加载失败"));
+        };
+        document.head.appendChild(script);
+      });
+    }
+
+    function loadActiveChart() {
+      if (state.chartRange === "today") return loadEastmoneyTrend(1);
+      if (state.chartRange === "five") return loadEastmoneyFiveDayChart();
+      return loadEastmoneyDailyChart(state.chartRange);
     }
 
     function loadEastmoneyQuote() {
@@ -2851,8 +3287,8 @@
       if (state.inFlight) return;
       state.inFlight = true;
       try {
-        const trendRequest = loadEastmoneyTrend().catch(() => {
-          renderChartMessage("分时走势暂时没有返回。休市、停牌、网络限制或行情源延迟时，曲线图可能为空。");
+        const trendRequest = loadActiveChart().catch(() => {
+          renderChartMessage("走势暂时没有返回。休市、停牌、网络限制或行情源延迟时，曲线图可能为空。");
         });
         try {
           await loadEastmoneyQuote();
@@ -2958,6 +3394,17 @@
       if (!button) return;
       const stockItem = state.watchlist.find(item => item.displayCode === button.dataset.code);
       if (stockItem) switchStock(stockItem);
+    });
+
+    el.trendChart.addEventListener("click", event => {
+      const button = event.target.closest(".chart-period");
+      if (!button) return;
+      const range = button.dataset.chartRange;
+      if (!chartRanges.some(item => item.key === range) || state.chartRange === range) return;
+      state.chartRange = range;
+      loadActiveChart().catch(() => {
+        renderChartMessage("走势暂时没有返回。休市、停牌、网络限制或行情源延迟时，曲线图可能为空。");
+      });
     });
 
     el.refreshButtons.forEach(button => {
