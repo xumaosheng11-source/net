@@ -3,15 +3,15 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>徐家专属看盘系统｜自选股实时看盘</title>
+  <title>徐家私人看盘系统</title>
   <meta name="description" content="自选股实时行情、分时走势、主力资金、公告和散户评论，一页查看。">
   <meta property="og:type" content="website">
-  <meta property="og:title" content="徐家专属看盘系统">
+  <meta property="og:title" content="徐家私人看盘系统">
   <meta property="og:description" content="点击查看自选股实时行情、资金流、公告和散户评论。">
   <meta property="og:url" content="https://xumaosheng11-source.github.io/net/">
   <meta property="og:image" content="https://xumaosheng11-source.github.io/net/share-card.png">
   <meta name="twitter:card" content="summary_large_image">
-  <meta name="twitter:title" content="徐家专属看盘系统">
+  <meta name="twitter:title" content="徐家私人看盘系统">
   <meta name="twitter:description" content="点击查看自选股实时行情、资金流、公告和散户评论。">
   <meta name="twitter:image" content="https://xumaosheng11-source.github.io/net/share-card.png">
   <style>
@@ -144,6 +144,7 @@
       gap: 7px;
       align-items: center;
       justify-content: center;
+      flex-wrap: wrap;
     }
 
     .watch-chip.active {
@@ -156,6 +157,35 @@
       color: currentColor;
       opacity: .72;
       font-weight: 800;
+    }
+
+    .watch-pct {
+      display: inline-flex;
+      align-items: center;
+      min-height: 24px;
+      padding: 0 8px;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, .78);
+      font-size: 12px;
+      font-weight: 900;
+      font-variant-numeric: tabular-nums;
+      line-height: 1;
+    }
+
+    .watch-pct.up {
+      color: #dc2626;
+    }
+
+    .watch-pct.down {
+      color: #16a34a;
+    }
+
+    .watch-pct.flat {
+      color: #475467;
+    }
+
+    .watch-chip.active .watch-pct {
+      background: rgba(255, 255, 255, .12);
     }
 
     .topbar {
@@ -1312,7 +1342,7 @@
       <div class="identity">
         <div class="service-greeting">
           <div class="service-copy">
-            <p class="greeting-kicker">徐家专属看盘系统</p>
+            <p class="greeting-kicker">徐家私人看盘系统</p>
             <p class="greeting">徐苹贵，您好。今日看盘信息已为您整理。</p>
           </div>
         </div>
@@ -1486,6 +1516,8 @@
       latestQuote: null,
       latestFundFlow: null,
       watchlist: [],
+      watchQuotes: {},
+      watchQuoteInFlight: false,
       searchEditing: false
     };
 
@@ -1764,17 +1796,27 @@
       el.watchAction.classList.toggle("remove", watched && !isDefault);
     }
 
+    function signedPctText(value) {
+      const n = numberValue(value);
+      if (n === null) return "--";
+      return (n > 0 ? "+" : "") + n.toFixed(2) + "%";
+    }
+
     function renderWatchlist() {
       el.watchlist.innerHTML = state.watchlist.map(item => {
         const active = item.displayCode === currentStock.displayCode;
+        const quote = state.watchQuotes[item.displayCode] || {};
+        const pct = numberValue(quote.changePct);
+        const pctClass = trendClass(pct);
         return `
           <button class="watch-chip ${active ? "active" : ""}" type="button" data-code="${item.displayCode}" aria-pressed="${active ? "true" : "false"}">
             <span>${escapeHtml(stockDisplayName(item))}</span>
             <small>${escapeHtml(item.displayCode)}</small>
+            <strong class="watch-pct ${pctClass}">${signedPctText(pct)}</strong>
           </button>
         `;
       }).join("");
-      el.watchlistStatus.textContent = isWatched() ? "当前股票已在自选股中。" : "当前股票还未加入自选。";
+      el.watchlistStatus.textContent = isWatched() ? "自选股涨跌幅随行情刷新同步更新。" : "当前股票还未加入自选。";
       updateWatchAction();
     }
 
@@ -1788,7 +1830,7 @@
       if (!state.searchEditing && document.activeElement !== el.stockSearchInput) {
         el.stockSearchInput.value = currentStock.displayCode;
       }
-      document.title = displayName + " " + currentStock.displayCode + " 实时行情看板";
+      document.title = "徐家私人看盘系统";
       renderWatchlist();
     }
 
@@ -1828,7 +1870,7 @@
       resetStockPanels();
       loadAnnouncements();
       loadDiscussions();
-      loadQuote();
+      refreshAll();
       resetTimer();
     }
 
@@ -1847,6 +1889,7 @@
       state.watchlist = mergeWatchlist([...state.watchlist, currentStock]);
       saveWatchlist();
       renderWatchlist();
+      loadWatchlistQuotes();
       showToast("已加入自选股。");
     }
 
@@ -2281,11 +2324,12 @@
       const quotedName = data.f58 || stockDisplayName(currentStock);
       const name = currentStock.preferredName || quotedName;
       currentStock.name = name;
+      state.watchQuotes[currentStock.displayCode] = { name, changePct };
       const savedStock = state.watchlist.find(item => item.displayCode === currentStock.displayCode);
       if (savedStock && !savedStock.preferredName) savedStock.name = quotedName;
       updateStockHeading(name);
 
-      document.title = name + " " + currentStock.displayCode + " 实时行情看板";
+      document.title = "徐家私人看盘系统";
       el.price.textContent = priceText(current);
       el.price.className = "price " + cls;
       el.delta.className = "delta " + cls;
@@ -2295,6 +2339,7 @@
       el.stateNote.textContent = stateNote;
       renderMetricsFromEastmoney(data);
       renderOrderBookFromEastmoney(data);
+      renderWatchlist();
     }
 
     function renderTencent(raw) {
@@ -2308,8 +2353,9 @@
 
       state.latestQuote = null;
       currentStock.name = name;
+      state.watchQuotes[currentStock.displayCode] = { name, changePct };
       updateStockHeading(name);
-      document.title = name + " " + currentStock.displayCode + " 实时行情看板";
+      document.title = "徐家私人看盘系统";
       el.price.textContent = priceText(current);
       el.price.className = "price " + cls;
       el.delta.className = "delta " + cls;
@@ -2829,12 +2875,47 @@
       }
     }
 
+    async function loadWatchlistQuotes() {
+      if (state.watchQuoteInFlight || !state.watchlist.length) return;
+      state.watchQuoteInFlight = true;
+      const secids = state.watchlist.map(item => item.secid).filter(Boolean).join(",");
+      if (!secids) {
+        state.watchQuoteInFlight = false;
+        return;
+      }
+
+      try {
+        const fields = "f3,f12,f14";
+        const url = "https://push2.eastmoney.com/api/qt/ulist.np/get?fltt=2&secids=" + secids + "&fields=" + fields;
+        const payload = await jsonp(url, "WatchQuotes", 5000);
+        const rows = payload && payload.data && Array.isArray(payload.data.diff) ? payload.data.diff : [];
+        rows.forEach(row => {
+          const code = String(row.f12 || "").replace(/\D/g, "");
+          if (!/^\d{6}$/.test(code)) return;
+          state.watchQuotes[code] = {
+            name: row.f14 || code,
+            changePct: numberValue(row.f3)
+          };
+        });
+        renderWatchlist();
+      } catch (error) {
+        renderWatchlist();
+      } finally {
+        state.watchQuoteInFlight = false;
+      }
+    }
+
+    function refreshAll() {
+      loadQuote();
+      loadWatchlistQuotes();
+    }
+
     function resetTimer() {
       if (state.timer) {
         window.clearInterval(state.timer);
         state.timer = null;
       }
-      state.timer = window.setInterval(loadQuote, state.refreshInterval);
+      state.timer = window.setInterval(refreshAll, state.refreshInterval);
     }
 
     function setRefreshInterval(interval) {
@@ -2845,7 +2926,7 @@
         button.setAttribute("aria-pressed", active ? "true" : "false");
       });
       resetTimer();
-      loadQuote();
+      refreshAll();
     }
 
     el.stockSearchInput.addEventListener("input", () => {
@@ -2912,7 +2993,7 @@
     loadDiscussions();
     state.announcementTimer = window.setInterval(loadAnnouncements, 60000);
     state.discussionTimer = window.setInterval(loadDiscussions, 120000);
-    loadQuote();
+    refreshAll();
     resetTimer();
   </script>
 </body>
